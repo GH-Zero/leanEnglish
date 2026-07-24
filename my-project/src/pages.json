@@ -47,6 +47,48 @@
 			"style": {
 				"navigationBarTitleText": "AI对话"
 			}
+		},
+		{
+			"path": "pages/mine/wrong-book",
+			"style": {
+				"navigationBarTitleText": "错题本"
+			}
+		},
+		{
+			"path": "pages/mine/word-book",
+			"style": {
+				"navigationBarTitleText": "生词本"
+			}
+		},
+		{
+			"path": "pages/mine/statistics",
+			"style": {
+				"navigationBarTitleText": "学习统计"
+			}
+		},
+		{
+			"path": "pages/mine/achievement",
+			"style": {
+				"navigationBarTitleText": "成就系统"
+			}
+		},
+		{
+			"path": "pages/mine/settings",
+			"style": {
+				"navigationBarTitleText": "学习设置"
+			}
+		},
+		{
+			"path": "pages/mine/notification",
+			"style": {
+				"navigationBarTitleText": "消息提醒"
+			}
+		},
+		{
+			"path": "pages/mine/profile",
+			"style": {
+				"navigationBarTitleText": "个人信息"
+			}
 		}
 	],
 	"globalStyle": {

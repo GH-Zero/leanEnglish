@@ -28,50 +28,45 @@
 		<view class="section">
 			<text class="section-title">学习工具</text>
 			<view class="tool-list">
-				<view class="tool-item">
+				<view class="tool-item" @click="goToPage('/pages/mine/wrong-book')">
 					<text class="tool-icon">📝</text>
 					<text class="tool-text">错题本</text>
 					<text class="tool-arrow">›</text>
 				</view>
-				<view class="tool-item">
+				<view class="tool-item" @click="goToPage('/pages/mine/word-book')">
 					<text class="tool-icon">📚</text>
 					<text class="tool-text">生词本</text>
 					<text class="tool-arrow">›</text>
 				</view>
-				<view class="tool-item">
+				<view class="tool-item" @click="goToPage('/pages/mine/statistics')">
 					<text class="tool-icon">📊</text>
 					<text class="tool-text">学习统计</text>
 					<text class="tool-arrow">›</text>
 				</view>
-				<view class="tool-item">
+				<view class="tool-item" @click="goToPage('/pages/mine/achievement')">
 					<text class="tool-icon">🏆</text>
 					<text class="tool-text">成就系统</text>
 					<text class="tool-arrow">›</text>
 				</view>
 			</view>
 		</view>
-		
+
 		<view class="section">
 			<text class="section-title">设置</text>
 			<view class="settings-list">
-				<view class="settings-item">
+				<view class="settings-item" @click="goToPage('/pages/mine/settings')">
 					<text class="settings-icon">⚙️</text>
 					<text class="settings-text">学习设置</text>
 					<text class="settings-arrow">›</text>
 				</view>
-				<view class="settings-item">
+				<view class="settings-item" @click="goToPage('/pages/mine/notification')">
 					<text class="settings-icon">🔔</text>
 					<text class="settings-text">消息提醒</text>
 					<text class="settings-arrow">›</text>
 				</view>
-				<view class="settings-item">
+				<view class="settings-item" @click="goToPage('/pages/mine/profile')">
 					<text class="settings-icon">👤</text>
 					<text class="settings-text">个人信息</text>
-					<text class="settings-arrow">›</text>
-				</view>
-				<view class="settings-item">
-					<text class="settings-icon">💳</text>
-					<text class="settings-text">会员中心</text>
 					<text class="settings-arrow">›</text>
 				</view>
 			</view>

@@ -32,7 +32,10 @@
 					<view class="message-item" :class="{ ai: msg.type === 'ai', user: msg.type === 'user' }" v-for="(msg, index) in messages" :key="index">
 						<view class="message-avatar" v-if="msg.type === 'ai'">🤖</view>
 						<view class="message-content">
-							<text class="message-text">{{ msg.text }}</text>
+							<view class="message-header">
+								<text class="message-text">{{ msg.text }}</text>
+								<view class="play-msg-btn" v-if="msg.type === 'ai'" @click="playMessage(msg.text)">🔊</view>
+							</view>
 							<text class="message-score" v-if="msg.score">发音评分：{{ msg.score }}分</text>
 							<text class="message-feedback" v-if="msg.feedback">{{ msg.feedback }}</text>
 							<text class="message-time">{{ msg.time }}</text>
@@ -162,6 +165,11 @@ export default {
 				text: scene.initialPrompt,
 				time: this.getCurrentTime()
 			});
+			
+			// 自动播放AI的初始消息
+			setTimeout(() => {
+				this.playMessage(scene.initialPrompt);
+			}, 500);
 		},
 		endDialogue() {
 			if (this.messages.length < 2) {
@@ -277,6 +285,11 @@ export default {
 				text: randomResponse,
 				time: this.getCurrentTime()
 			});
+			
+			// 自动播放AI回复
+			setTimeout(() => {
+				this.playMessage(randomResponse);
+			}, 500);
 			
 			// 更新用户消息的评分
 			const lastUserMsg = this.messages.filter(msg => msg.type === 'user').pop();
@@ -394,6 +407,19 @@ export default {
 		closeReport() {
 			this.showReport = false;
 			this.isDialogueActive = false;
+		},
+		playMessage(text) {
+			// 使用有道词典TTS播放英文语音
+			const audio = uni.createInnerAudioContext();
+			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(text)}&type=2`;
+			audio.play();
+			audio.onError((err) => {
+				console.error('音频播放失败:', err);
+				uni.showToast({
+					title: '播放失败，请检查网络',
+					icon: 'none'
+				});
+			});
 		},
 		getCurrentTime() {
 			const now = new Date();
@@ -555,6 +581,17 @@ export default {
 
 .message-content {
 	max-width: 70%;
+}
+
+.message-header {
+	display: flex;
+	align-items: flex-start;
+}
+
+.play-msg-btn {
+	font-size: 32rpx;
+	margin-left: 10rpx;
+	padding: 5rpx;
 }
 
 .message-item.ai .message-content {

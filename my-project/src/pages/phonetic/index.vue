@@ -30,7 +30,7 @@
 						<text class="phonetic-chinese">{{ item.chinese }}</text>
 					</view>
 					<view class="phonetic-actions">
-						<text class="play-btn" @click="playSound(item.symbol)">🔊</text>
+						<text class="play-btn" @click="playSound(item.symbol, item.example)">🔊</text>
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
 					</view>
 				</view>
@@ -62,7 +62,7 @@
 					</view>
 					
 					<view class="practice-actions">
-						<text class="action-btn play" @click="playSound(currentPractice.symbol)">播放标准发音</text>
+						<text class="action-btn play" @click="playSound(currentPractice.symbol, currentPractice.example)">播放标准发音</text>
 						<text class="action-btn record" :class="{ recording: isRecording }" @click="toggleRecording">
 							{{ isRecording ? '停止录音' : '开始录音' }}
 						</text>
@@ -167,12 +167,18 @@ export default {
 		switchCategory(category) {
 			this.currentCategory = category;
 		},
-		playSound(symbol) {
-			// 播放音标发音
-			console.log('播放音标发音:', symbol);
-			uni.showToast({
-				title: '播放发音: ' + symbol,
-				icon: 'none'
+		playSound(symbol, example) {
+			// 使用有道词典API播放单词发音
+			const word = example || 'hello';
+			const audio = uni.createInnerAudioContext();
+			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`;
+			audio.play();
+			audio.onError((err) => {
+				console.error('音频播放失败:', err);
+				uni.showToast({
+					title: '播放失败，请检查网络',
+					icon: 'none'
+				});
 			});
 		},
 		startPractice(item) {
