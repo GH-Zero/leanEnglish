@@ -363,11 +363,22 @@ export default {
 		completeLearning() {
 			this.learningStep = 'complete';
 			this.practiceScore = this.totalQuestions > 0 ? Math.round((this.correctCount / this.totalQuestions) * 100) : 100;
-			
+
 			// 更新语法点状态
 			const grammar = this.grammarPoints.find(item => item.id === this.currentGrammar.id);
 			if (grammar) {
 				grammar.status = '已学习';
+			}
+
+			// 调用API更新统计
+			this.updateGrammarStatsAPI();
+		},
+		async updateGrammarStatsAPI() {
+			try {
+				const { updateGrammarStats } = require('@/utils/api.js');
+				await updateGrammarStats(1, this.practiceScore >= 60);
+			} catch (error) {
+				console.error('更新语法统计API失败:', error);
 			}
 		},
 		startQuickPractice() {

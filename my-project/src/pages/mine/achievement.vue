@@ -83,6 +83,8 @@
 </template>
 
 <script>
+import { getAchievements } from '@/utils/api.js';
+
 export default {
 	computed: {
 		unlockedCount() {
@@ -98,24 +100,46 @@ export default {
 	},
 	data() {
 		return {
-			learningBadges: [
-				{ icon: '🌱', name: '初学者', description: '完成第一次学习', unlocked: true, progress: 100 },
-				{ icon: '📖', name: '单词达人', description: '学习100个单词', unlocked: true, progress: 100 },
-				{ icon: '📚', name: '词汇大师', description: '学习500个单词', unlocked: false, progress: 31 },
-				{ icon: '📝', name: '语法入门', description: '完成5个语法练习', unlocked: true, progress: 100 },
-				{ icon: '🗣️', name: '口语新星', description: '完成10次跟读', unlocked: false, progress: 60 },
-			],
-			streakBadges: [
-				{ icon: '🔥', name: '三天连续', description: '连续学习3天', unlocked: true },
-				{ icon: '🔥', name: '一周坚持', description: '连续学习7天', unlocked: true },
+			learningBadges: [],
+			streakBadges: [],
+			specialBadges: []
+		}
+	},
+	onShow() {
+		this.loadAchievements();
+	},
+	methods: {
+		async loadAchievements() {
+			try {
+				const achievements = await getAchievements();
+				this.learningBadges = achievements.learning || [];
+				this.streakBadges = achievements.streak || [];
+				this.specialBadges = achievements.special || [];
+			} catch (error) {
+				console.error('加载成就数据失败:', error);
+				this.loadLocalAchievements();
+			}
+		},
+		loadLocalAchievements() {
+			// 本地备用数据
+			this.learningBadges = [
+				{ icon: '🌱', name: '初学者', description: '完成第一次学习', unlocked: false, progress: 0 },
+				{ icon: '📖', name: '单词达人', description: '学习100个单词', unlocked: false, progress: 0 },
+				{ icon: '📚', name: '词汇大师', description: '学习500个单词', unlocked: false, progress: 0 },
+				{ icon: '📝', name: '语法入门', description: '完成5个语法练习', unlocked: false, progress: 0 },
+				{ icon: '🗣️', name: '口语新星', description: '完成10次跟读', unlocked: false, progress: 0 }
+			];
+			this.streakBadges = [
+				{ icon: '🔥', name: '三天连续', description: '连续学习3天', unlocked: false },
+				{ icon: '🔥', name: '一周坚持', description: '连续学习7天', unlocked: false },
 				{ icon: '🔥', name: '半月达人', description: '连续学习15天', unlocked: false },
-				{ icon: '🔥', name: '一月之星', description: '连续学习30天', unlocked: false },
-			],
-			specialBadges: [
+				{ icon: '🔥', name: '一月之星', description: '连续学习30天', unlocked: false }
+			];
+			this.specialBadges = [
 				{ icon: '🎯', name: '发音高手', description: '发音准确率达到90%', unlocked: false },
 				{ icon: '💬', name: '对话达人', description: '完成20次AI对话', unlocked: false },
-				{ icon: '🏆', name: '全能学霸', description: '解锁所有徽章', unlocked: false },
-			]
+				{ icon: '🏆', name: '全能学霸', description: '解锁所有徽章', unlocked: false }
+			];
 		}
 	}
 }

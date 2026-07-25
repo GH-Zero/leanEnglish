@@ -30,7 +30,7 @@
 						<text class="phonetic-chinese">{{ item.chinese }}</text>
 					</view>
 					<view class="phonetic-actions">
-						<text class="play-btn" @click="playSound(item.symbol, item.example)">🔊</text>
+						<text class="play-btn" @click="playSound(item.symbol, item.example, item.chinese)">🔊</text>
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
 					</view>
 				</view>
@@ -59,10 +59,12 @@
 						<text class="score-number">{{ score }}</text>
 						<text class="score-label">发音评分</text>
 						<text class="score-feedback">{{ scoreFeedback }}</text>
+						<text class="score-tip" v-if="!apiKeyConfigured">* 评分仅供参考，配置讯飞API后可获得真实评分</text>
 					</view>
 					
 					<view class="practice-actions">
-						<text class="action-btn play" @click="playSound(currentPractice.symbol, currentPractice.example)">播放标准发音</text>
+						<text class="action-btn play" @click="playSound(currentPractice.symbol, currentPractice.example, currentPractice.chinese)">播放标准发音</text>
+						<text class="action-btn play-my" v-if="recordedFilePath" @click="playMyRecording">播放我的录音</text>
 						<text class="action-btn record" :class="{ recording: isRecording }" @click="toggleRecording">
 							{{ isRecording ? '停止录音' : '开始录音' }}
 						</text>
@@ -149,7 +151,10 @@ export default {
 			score: 0,
 			scoreFeedback: '',
 			recordManager: null,
-			masteredCount: 0
+			masteredCount: 0,
+			recordedFilePath: '',
+			myAudioContext: null,
+			apiKeyConfigured: false
 		}
 	},
 	computed: {
@@ -167,11 +172,13 @@ export default {
 		switchCategory(category) {
 			this.currentCategory = category;
 		},
-		playSound(symbol, example) {
-			// 使用有道词典API播放单词发音
+		playSound(symbol, example, chinese) {
 			const word = example || 'hello';
+			this.playWordAudio(word);
+		},
+		playWordAudio(word) {
 			const audio = uni.createInnerAudioContext();
-			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`;
+			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=2`;
 			audio.play();
 			audio.onError((err) => {
 				console.error('音频播放失败:', err);
@@ -201,6 +208,7 @@ export default {
 			this.recordManager.onStop((res) => {
 				console.log('录音结束:', res);
 				this.isRecording = false;
+				this.recordedFilePath = res.tempFilePath;
 				this.evaluateRecording(res.tempFilePath);
 			});
 			
@@ -224,12 +232,13 @@ export default {
 		startRecording() {
 			this.showScore = false;
 			this.isRecording = true;
+			this.recordedFilePath = '';
 			
 			const options = {
 				duration: 10000,
-				sampleRate: 44100,
-			 numberOfChannels: 1,
-				format: 'mp3'
+				sampleRate: 16000,
+				numberOfChannels: 1,
+				format: 'wav'
 			};
 			
 			this.recordManager.start(options);
@@ -242,35 +251,140 @@ export default {
 			}, 10000);
 		},
 		evaluateRecording(filePath) {
-			// 模拟语音评测（实际应调用第三方API）
+			// 调用语音评测API
 			uni.showLoading({
 				title: '正在评测...'
 			});
-			
-			// 模拟评测过程
-			setTimeout(() => {
+
+			// 将音频文件转换为base64
+			const fs = uni.getFileSystemManager();
+			fs.readFile({
+				filePath: filePath,
+				encoding: 'base64',
+				success: (res) => {
+					const audioBase64 = res.data;
+					const word = this.currentPractice.example || 'hello';
+					
+					// 调用评测API
+					this.callEvaluateAPI(audioBase64, word);
+				},
+				fail: (err) => {
+					uni.hideLoading();
+					console.error('读取音频文件失败:', err);
+					uni.showToast({
+						title: '录音读取失败',
+						icon: 'none'
+					});
+				}
+			});
+		},
+		async callEvaluateAPI(audioBase64, word) {
+			try {
+				const { evaluateSpeech } = require('@/utils/api.js');
+				const result = await evaluateSpeech(audioBase64, word);
+				
 				uni.hideLoading();
 				
-				// 模拟评分（实际应调用Azure或讯飞API）
-				this.score = Math.floor(Math.random() * 40) + 60; // 60-100分
+				if (result && result.score) {
+					this.score = result.score;
+					this.scoreFeedback = result.feedback || '';
+					this.showScore = true;
+					
+					// 调用API更新统计
+					this.updatePhoneticStatsAPI();
+				} else {
+					uni.showToast({
+						title: '评测失败，请重试',
+						icon: 'none'
+					});
+				}
+			} catch (error) {
+				uni.hideLoading();
+				console.error('语音评测API失败:', error);
 				
+				// API失败时使用模拟评分
+				this.score = Math.floor(Math.random() * 30) + 70;
 				if (this.score >= 90) {
 					this.scoreFeedback = '发音很棒！继续保持！';
 				} else if (this.score >= 80) {
 					this.scoreFeedback = '发音不错，可以更标准一些。';
-				} else if (this.score >= 70) {
-					this.scoreFeedback = '发音需要改进，注意口型。';
 				} else {
-					this.scoreFeedback = '发音需要多练习，建议重新听标准发音。';
+					this.scoreFeedback = '发音需要改进，多练习！';
 				}
-				
 				this.showScore = true;
-			}, 1500);
+				this.updatePhoneticStatsAPI();
+			}
+		},
+		async updatePhoneticStatsAPI() {
+			try {
+				const { updatePhoneticStats } = require('@/utils/api.js');
+				await updatePhoneticStats(1);
+			} catch (error) {
+				console.error('更新音标统计API失败:', error);
+			}
+		},
+		playMyRecording() {
+			if (!this.recordedFilePath) {
+				uni.showToast({
+					title: '没有录音，请先录音',
+					icon: 'none'
+				});
+				return;
+			}
+			
+			console.log('播放录音:', this.recordedFilePath);
+			
+			// 将录音复制到有.wav后缀的路径，确保能正确播放
+			const fs = uni.getFileSystemManager();
+			const newPath = `${wx.env.USER_DATA_PATH}/recording_${Date.now()}.wav`;
+			
+			fs.copyFile({
+				srcPath: this.recordedFilePath,
+				filePath: newPath,
+				success: () => {
+					console.log('复制录音成功:', newPath);
+					this.doPlayRecording(newPath);
+				},
+				fail: (err) => {
+					console.error('复制录音失败:', err);
+					// 直接尝试播放原文件
+					this.doPlayRecording(this.recordedFilePath);
+				}
+			});
+		},
+		doPlayRecording(filePath) {
+			if (this.myAudioContext) {
+				this.myAudioContext.destroy();
+			}
+			
+			this.myAudioContext = uni.createInnerAudioContext();
+			this.myAudioContext.src = filePath;
+			this.myAudioContext.obeyMuteSwitch = false;
+			this.myAudioContext.onCanplay(() => {
+				console.log('录音可以播放');
+			});
+			this.myAudioContext.onPlay(() => {
+				console.log('开始播放录音');
+				uni.showToast({
+					title: '正在播放...',
+					icon: 'none',
+					duration: 1000
+				});
+			});
+			this.myAudioContext.onError((err) => {
+				console.error('播放录音失败:', err);
+				uni.showToast({
+					title: '播放失败',
+					icon: 'none'
+				});
+			});
+			this.myAudioContext.play();
 		},
 		retryPractice() {
 			this.showScore = false;
 			this.score = 0;
 			this.scoreFeedback = '';
+			this.recordedFilePath = '';
 		}
 	}
 }
@@ -545,6 +659,14 @@ export default {
 	display: block;
 }
 
+.score-tip {
+	font-size: 22rpx;
+	color: #999;
+	display: block;
+	margin-top: 10rpx;
+	font-style: italic;
+}
+
 .practice-actions {
 	display: flex;
 	justify-content: space-around;
@@ -560,6 +682,11 @@ export default {
 
 .action-btn.play {
 	background-color: #1F3A5F;
+	color: #FFFFFF;
+}
+
+.action-btn.play-my {
+	background-color: #6366F1;
 	color: #FFFFFF;
 }
 

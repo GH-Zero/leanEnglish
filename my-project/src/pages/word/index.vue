@@ -322,6 +322,16 @@ export default {
 					this.masteredCount++;
 				}
 			}
+			// 调用API更新统计
+			this.updateWordStatsAPI();
+		},
+		async updateWordStatsAPI() {
+			try {
+				const { updateWordStats } = require('@/utils/api.js');
+				await updateWordStats(1, true);
+			} catch (error) {
+				console.error('更新单词统计API失败:', error);
+			}
 		},
 		startNewSession() {
 			// 重置今日学习状态

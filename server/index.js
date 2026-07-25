@@ -1,0 +1,79 @@
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const { initDatabase } = require('./database-sqlite');
+
+// 导入路由
+const userRoutes = require('./routes/user');
+const wordRoutes = require('./routes/word');
+const grammarRoutes = require('./routes/grammar');
+const phoneticRoutes = require('./routes/phonetic');
+const dialogueRoutes = require('./routes/dialogue');
+const statisticsRoutes = require('./routes/statistics');
+const achievementRoutes = require('./routes/achievement');
+const settingsRoutes = require('./routes/settings');
+const speechRoutes = require('./routes/speech');
+
+// 创建Express应用
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// 中间件
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// 请求日志
+app.use((req, res, next) => {
+	console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+	next();
+});
+
+// 注册路由
+app.use('/api/user', userRoutes);
+app.use('/api/word', wordRoutes);
+app.use('/api/grammar', grammarRoutes);
+app.use('/api/phonetic', phoneticRoutes);
+app.use('/api/dialogue', dialogueRoutes);
+app.use('/api/statistics', statisticsRoutes);
+app.use('/api/achievement', achievementRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/speech', speechRoutes);
+
+// 健康检查
+app.get('/api/health', (req, res) => {
+	res.json({ status: 'ok', timestamp: new Date().toISOString(), database: 'SQLite' });
+});
+
+// 404处理
+app.use((req, res) => {
+	res.status(404).json({ code: 404, message: '接口不存在' });
+});
+
+// 错误处理
+app.use((err, req, res, next) => {
+	console.error('服务器错误:', err);
+	res.status(500).json({ code: 500, message: '服务器内部错误' });
+});
+
+// 启动服务器
+async function startServer() {
+	try {
+		// 初始化数据库
+		initDatabase();
+
+		// 启动Express服务器
+		app.listen(PORT, () => {
+			console.log(`✅ 服务器已启动，监听端口: ${PORT}`);
+			console.log(`📡 API地址: http://localhost:${PORT}/api`);
+			console.log(`💾 数据库: SQLite (本地文件)`);
+		});
+	} catch (error) {
+		console.error('❌ 服务器启动失败:', error.message);
+		process.exit(1);
+	}
+}
+
+startServer();
+
+module.exports = app;

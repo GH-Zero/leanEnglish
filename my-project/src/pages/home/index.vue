@@ -4,22 +4,22 @@
 			<text class="title">英语学习小程序</text>
 			<text class="subtitle">从零基础到自由沟通</text>
 		</view>
-		
+
 		<view class="stats-card">
 			<view class="stat-item">
-				<text class="stat-number">0</text>
+				<text class="stat-number">{{ stats.streakDays }}</text>
 				<text class="stat-label">连续学习天数</text>
 			</view>
 			<view class="stat-item">
-				<text class="stat-number">0</text>
+				<text class="stat-number">{{ stats.totalWordsLearned }}</text>
 				<text class="stat-label">已学单词</text>
 			</view>
 			<view class="stat-item">
-				<text class="stat-number">0</text>
+				<text class="stat-number">{{ stats.totalGrammarMastered }}</text>
 				<text class="stat-label">语法掌握</text>
 			</view>
 		</view>
-		
+
 		<view class="section">
 			<text class="section-title">今日学习任务</text>
 			<view class="task-list">
@@ -42,19 +42,37 @@
 		</view>
 		
 		<view class="section">
-			<text class="section-title">快捷入口</text>
-			<view class="quick-entry">
-				<view class="entry-item" @click="goToPage('/pages/learn/index')">
-					<text class="entry-icon">🎯</text>
-					<text class="entry-text">开始学习</text>
+			<text class="section-title">每日闯关学习</text>
+			<view class="challenge-list">
+				<view class="challenge-item" @click="goToChallenge('word')">
+					<view class="challenge-left">
+						<text class="challenge-icon">🏆</text>
+						<view class="challenge-info">
+							<text class="challenge-title">每日单词闯关</text>
+							<text class="challenge-desc">完成10个单词背诵挑战</text>
+						</view>
+					</view>
+					<text class="challenge-arrow">›</text>
 				</view>
-				<view class="entry-item" @click="goToPage('/pages/speak/index')">
-					<text class="entry-icon">🗣️</text>
-					<text class="entry-text">AI对话</text>
+				<view class="challenge-item" @click="goToChallenge('speak')">
+					<view class="challenge-left">
+						<text class="challenge-icon">🎤</text>
+						<view class="challenge-info">
+							<text class="challenge-title">口语挑战</text>
+							<text class="challenge-desc">跟读3句标准发音</text>
+						</view>
+					</view>
+					<text class="challenge-arrow">›</text>
 				</view>
-				<view class="entry-item" @click="goToPage('/pages/mine/index')">
-					<text class="entry-icon">📊</text>
-					<text class="entry-text">学习统计</text>
+				<view class="challenge-item" @click="goToChallenge('grammar')">
+					<view class="challenge-left">
+						<text class="challenge-icon">📝</text>
+						<view class="challenge-info">
+							<text class="challenge-title">语法闯关</text>
+							<text class="challenge-desc">掌握今日语法知识点</text>
+						</view>
+					</view>
+					<text class="challenge-arrow">›</text>
 				</view>
 			</view>
 		</view>
@@ -62,20 +80,65 @@
 </template>
 
 <script>
+import {
+	getLearningStats,
+	getStreakData
+} from '@/utils/api.js';
+
 export default {
+	data() {
+		return {
+			stats: {
+				streakDays: 0,
+				totalWordsLearned: 0,
+				totalGrammarMastered: 0
+			}
+		}
+	},
+	onShow() {
+		this.loadData();
+	},
 	methods: {
+		async loadData() {
+			try {
+				const [learningStats, streak] = await Promise.all([
+					getLearningStats(),
+					getStreakData()
+				]);
+
+				this.stats = {
+					streakDays: streak ? streak.current_streak : 0,
+					totalWordsLearned: learningStats ? learningStats.total_words_learned : 0,
+					totalGrammarMastered: learningStats ? learningStats.total_grammar_mastered : 0
+				};
+			} catch (error) {
+				console.error('加载数据失败:', error);
+				this.loadLocalData();
+			}
+		},
+		loadLocalData() {
+			try {
+				const stats = uni.getStorageSync('learningStats') || {};
+				const streak = uni.getStorageSync('streakData') || {};
+				this.stats = {
+					streakDays: streak.currentStreak || 0,
+					totalWordsLearned: stats.totalWordsLearned || 0,
+					totalGrammarMastered: stats.totalGrammarMastered || 0
+				};
+			} catch (e) {
+				console.error('读取本地数据失败:', e);
+			}
+		},
 		goToPage(url) {
-			// TabBar页面需要使用switchTab
 			const tabBarPages = ['/pages/home/index', '/pages/learn/index', '/pages/speak/index', '/pages/mine/index'];
 			if (tabBarPages.includes(url)) {
-				uni.switchTab({
-					url: url
-				});
+				uni.switchTab({ url: url });
 			} else {
-				uni.navigateTo({
-					url: url
-				});
+				uni.navigateTo({ url: url });
 			}
+		},
+		goToChallenge(type) {
+			uni.navigateTo({ url: `/pages/challenge/index?type=${type}` });
 		}
 	}
 }
@@ -175,29 +238,54 @@ export default {
 	color: #7A7A7A;
 }
 
-.quick-entry {
-	display: flex;
-	justify-content: space-around;
-}
-
-.entry-item {
-	text-align: center;
+.challenge-list {
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
-	padding: 30rpx;
-	width: 200rpx;
+	overflow: hidden;
 	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1);
 }
 
-.entry-icon {
-	font-size: 60rpx;
-	display: block;
-	margin-bottom: 10rpx;
+.challenge-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 30rpx;
+	border-bottom: 1rpx solid #F0F0F0;
 }
 
-.entry-text {
-	font-size: 26rpx;
+.challenge-item:last-child {
+	border-bottom: none;
+}
+
+.challenge-left {
+	display: flex;
+	align-items: center;
+}
+
+.challenge-icon {
+	font-size: 48rpx;
+	margin-right: 20rpx;
+}
+
+.challenge-info {
+	display: flex;
+	flex-direction: column;
+}
+
+.challenge-title {
+	font-size: 30rpx;
 	color: #333333;
-	display: block;
+	font-weight: bold;
+}
+
+.challenge-desc {
+	font-size: 24rpx;
+	color: #999999;
+	margin-top: 8rpx;
+}
+
+.challenge-arrow {
+	font-size: 36rpx;
+	color: #CCCCCC;
 }
 </style>

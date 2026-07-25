@@ -89,6 +89,12 @@
 			"style": {
 				"navigationBarTitleText": "个人信息"
 			}
+		},
+		{
+			"path": "pages/challenge/index",
+			"style": {
+				"navigationBarTitleText": "每日闯关"
+			}
 		}
 	],
 	"globalStyle": {

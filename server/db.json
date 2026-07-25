@@ -1,0 +1,100 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "openid": "test_user_001",
+      "nickname": "????",
+      "avatar": "/static/default-avatar.png",
+      "level": 1,
+      "goal": 0,
+      "study_duration": 30,
+      "focus": 0,
+      "created_at": "2026-07-24T14:28:22.558Z",
+      "updated_at": "2026-07-24T15:40:59.802Z"
+    }
+  ],
+  "learning_stats": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "total_words_learned": 9,
+      "total_grammar_mastered": 0,
+      "total_phonetic_mastered": 0,
+      "total_speak_practice": 0,
+      "total_study_minutes": 0,
+      "streak_days": 2,
+      "max_streak_days": 2,
+      "last_study_date": "2026-07-25",
+      "accuracy": 100,
+      "total_practice_count": 9,
+      "correct_count": 9,
+      "created_at": "2026-07-24T14:28:22.562Z",
+      "updated_at": "2026-07-25T03:20:41.684Z"
+    }
+  ],
+  "streak_data": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "current_streak": 2,
+      "max_streak": 2,
+      "last_study_date": "2026-07-25",
+      "created_at": "2026-07-24T14:28:22.565Z",
+      "updated_at": "2026-07-25T03:20:35.115Z"
+    }
+  ],
+  "daily_records": [
+    {
+      "id": 1784907695445,
+      "user_id": 1,
+      "date": "2026-07-24",
+      "words_learned": 5,
+      "words_reviewed": 0,
+      "grammar_practiced": 0,
+      "phonetic_practiced": 0,
+      "speak_practiced": 0,
+      "study_minutes": 0,
+      "created_at": "2026-07-24T15:41:35.445Z"
+    },
+    {
+      "id": 1784949635112,
+      "user_id": 1,
+      "date": "2026-07-25",
+      "words_learned": 4,
+      "words_reviewed": 0,
+      "grammar_practiced": 0,
+      "phonetic_practiced": 0,
+      "speak_practiced": 0,
+      "study_minutes": 0,
+      "created_at": "2026-07-25T03:20:35.112Z"
+    }
+  ],
+  "word_status": [],
+  "grammar_progress": [],
+  "phonetic_progress": [],
+  "dialogue_history": [],
+  "learning_settings": [
+    {
+      "id": 1,
+      "user_id": 1,
+      "daily_new_words": 20,
+      "daily_review_words": 50,
+      "difficulty": 1,
+      "accent": 0,
+      "auto_play": 1,
+      "dark_mode": 0,
+      "font_size": 1,
+      "daily_reminder": 1,
+      "reminder_time": "08:00",
+      "reminder_content": 0,
+      "word_reminder": 1,
+      "progress_reminder": 1,
+      "achievement_reminder": 1,
+      "do_not_disturb": 1,
+      "dnd_start": "22:00",
+      "dnd_end": "07:00",
+      "created_at": "2026-07-24T14:28:22.568Z",
+      "updated_at": "2026-07-24T14:28:22.568Z"
+    }
+  ]
+}

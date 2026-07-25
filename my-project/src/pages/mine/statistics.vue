@@ -77,29 +77,74 @@
 </template>
 
 <script>
+import { getStudyStatistics } from '@/utils/api.js';
+
 export default {
 	data() {
 		return {
-			today: 24,
-			studyDays: [1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24],
+			today: new Date().getDate(),
+			studyDays: [],
 			stats: {
-				totalDays: 21,
-				totalWords: 156,
-				totalHours: 18.5,
-				wordsLearned: 156,
-				grammarPractice: 42,
-				speakPractice: 28,
-				accuracy: 78
+				totalDays: 0,
+				totalWords: 0,
+				totalHours: '0',
+				wordsLearned: 0,
+				grammarPractice: 0,
+				speakPractice: 0,
+				accuracy: 0
 			},
-			weekData: [
-				{ label: '周一', value: 45, height: 90 },
-				{ label: '周二', value: 60, height: 120 },
-				{ label: '周三', value: 30, height: 60 },
-				{ label: '周四', value: 75, height: 150 },
-				{ label: '周五', value: 50, height: 100 },
-				{ label: '周六', value: 80, height: 160 },
-				{ label: '周日', value: 40, height: 80 },
-			]
+			weekData: []
+		}
+	},
+	onShow() {
+		this.loadStatistics();
+	},
+	methods: {
+		async loadStatistics() {
+			try {
+				const statistics = await getStudyStatistics();
+
+				this.stats = {
+					totalDays: statistics.totalDays || 0,
+					totalWords: statistics.totalWords || 0,
+					totalHours: statistics.totalHours || '0',
+					wordsLearned: statistics.wordsLearned || 0,
+					grammarPractice: statistics.grammarPractice || 0,
+					speakPractice: statistics.speakPractice || 0,
+					accuracy: statistics.accuracy || 0
+				};
+
+				this.studyDays = statistics.studyDates
+					? statistics.studyDates.map(d => new Date(d).getDate())
+					: [];
+
+				this.weekData = statistics.weekData || [];
+			} catch (error) {
+				console.error('加载统计数据失败:', error);
+				this.loadLocalStatistics();
+			}
+		},
+		loadLocalStatistics() {
+			try {
+				const stats = uni.getStorageSync('learningStats') || {};
+				const streak = uni.getStorageSync('streakData') || {};
+
+				this.stats = {
+					totalDays: streak.studyDates ? streak.studyDates.length : 0,
+					totalWords: stats.totalWordsLearned || 0,
+					totalHours: ((stats.totalStudyMinutes || 0) / 60).toFixed(1),
+					wordsLearned: stats.totalWordsLearned || 0,
+					grammarPractice: stats.totalGrammarMastered || 0,
+					speakPractice: stats.totalSpeakPractice || 0,
+					accuracy: stats.accuracy || 0
+				};
+
+				this.studyDays = streak.studyDates
+					? streak.studyDates.map(d => new Date(d).getDate())
+					: [];
+			} catch (e) {
+				console.error('读取本地数据失败:', e);
+			}
 		}
 	}
 }

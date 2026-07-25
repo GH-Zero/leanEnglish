@@ -12,16 +12,16 @@
 		
 		<view class="stats-card">
 			<view class="stat-item">
-				<text class="stat-number">0</text>
+				<text class="stat-number">{{ stats.streakDays }}</text>
 				<text class="stat-label">连续学习</text>
 			</view>
 			<view class="stat-item">
-				<text class="stat-number">0</text>
+				<text class="stat-number">{{ stats.totalWordsLearned }}</text>
 				<text class="stat-label">已学单词</text>
 			</view>
 			<view class="stat-item">
-				<text class="stat-number">0</text>
-				<text class="stat-label">学习时长</text>
+				<text class="stat-number">{{ studyHours }}</text>
+				<text class="stat-label">学习时长(h)</text>
 			</view>
 		</view>
 		
@@ -75,8 +75,67 @@
 </template>
 
 <script>
+import { getLearningStats, getStreakData, getUserProfile } from '@/utils/api.js';
+
 export default {
+	data() {
+		return {
+			stats: {
+				streakDays: 0,
+				totalWordsLearned: 0,
+				totalStudyMinutes: 0
+			},
+			studyHours: '0',
+			userProfile: {
+				nickname: '英语学习者',
+				levelIndex: 0
+			},
+			levelOptions: ['零基础入门', '初级水平', '中级水平', '高级水平']
+		}
+	},
+	onShow() {
+		this.loadData();
+	},
 	methods: {
+		async loadData() {
+			try {
+				const [learningStats, streak, profile] = await Promise.all([
+					getLearningStats(),
+					getStreakData(),
+					getUserProfile()
+				]);
+
+				this.stats = {
+					streakDays: streak ? streak.current_streak : 0,
+					totalWordsLearned: learningStats ? learningStats.total_words_learned : 0,
+					totalStudyMinutes: learningStats ? learningStats.total_study_minutes : 0
+				};
+
+				this.studyHours = (this.stats.totalStudyMinutes / 60).toFixed(1);
+				this.userProfile = profile || { nickname: '英语学习者', levelIndex: 0 };
+			} catch (error) {
+				console.error('加载数据失败:', error);
+				this.loadLocalData();
+			}
+		},
+		loadLocalData() {
+			try {
+				const stats = uni.getStorageSync('learningStats') || {};
+				const streak = uni.getStorageSync('streakData') || {};
+				const profile = uni.getStorageSync('userProfile') || {};
+
+				this.stats = {
+					streakDays: streak.currentStreak || 0,
+					totalWordsLearned: stats.totalWordsLearned || 0,
+					totalStudyMinutes: stats.totalStudyMinutes || 0
+				};
+
+				this.studyHours = (this.stats.totalStudyMinutes / 60).toFixed(1);
+				this.userProfile = profile;
+			} catch (e) {
+				console.error('读取本地数据失败:', e);
+			}
+		},
 		goToPage(url) {
 			const tabBarPages = ['/pages/home/index', '/pages/learn/index', '/pages/speak/index', '/pages/mine/index'];
 			if (tabBarPages.includes(url)) {
