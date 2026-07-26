@@ -192,6 +192,90 @@ function initDatabase() {
 		)
 	`);
 
+	// 单词字典表
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS words (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			word TEXT UNIQUE NOT NULL,
+			phonetic_us TEXT,
+			phonetic_uk TEXT,
+			chinese TEXT,
+			example TEXT,
+			level INTEGER DEFAULT 0,
+			tag TEXT DEFAULT '通用',
+			sort_order INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
+	// 对话场景表
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS dialogue_scenes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			icon TEXT NOT NULL,
+			name TEXT NOT NULL,
+			description TEXT,
+			initial_prompt TEXT,
+			sort_order INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
+	// 影子跟读句子表
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS shadow_sentences (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			text TEXT NOT NULL,
+			chinese TEXT,
+			level INTEGER DEFAULT 0,
+			tag TEXT DEFAULT '通用',
+			sort_order INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
+	// 语法练习题表
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS grammar_questions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			grammar_id INTEGER,
+			sentence TEXT NOT NULL,
+			answer TEXT NOT NULL,
+			options TEXT NOT NULL,
+			explanation TEXT,
+			level INTEGER DEFAULT 0,
+			sort_order INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
+	// 音标表
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS phonetics (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			symbol TEXT UNIQUE NOT NULL,
+			example TEXT,
+			chinese TEXT,
+			category TEXT NOT NULL,
+			sort_order INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
+	// 语法知识点表
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS grammar_points (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			description TEXT,
+			stage INTEGER DEFAULT 1,
+			explanation TEXT,
+			examples TEXT,
+			sort_order INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`);
+
 	// 插入默认用户（如果不存在）
 	const existingUser = db.prepare('SELECT id FROM users WHERE openid = ?').get('test_user_001');
 	if (!existingUser) {

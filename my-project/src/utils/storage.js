@@ -297,7 +297,14 @@ export function updateDailyRecord(data) {
 	}
 	
 	record = { ...record, ...data };
-	return setData(STORAGE_KEYS.DAILY_RECORD, record);
+	setData(STORAGE_KEYS.DAILY_RECORD, record);
+	
+	// 保存到历史记录中
+	const history = getData('dailyRecordHistory') || {};
+	history[today] = record;
+	setData('dailyRecordHistory', history);
+	
+	return true;
 }
 
 /**
@@ -504,17 +511,30 @@ function calculateWeekData() {
 	const dayOfWeek = today.getDay(); // 0-6, 0是周日
 	const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 	
+	// 获取每日记录历史
+	const dailyRecords = getData('dailyRecordHistory') || {};
+	
 	const weekData = [];
 	for (let i = 0; i < 7; i++) {
 		const date = new Date(today);
 		date.setDate(today.getDate() - dayOfWeek + i);
 		const dateStr = date.toISOString().split('T')[0];
-		const isStudied = streak.studyDates && streak.studyDates.includes(dateStr);
+		
+		let studyMinutes = 0;
+		if (dailyRecords[dateStr]) {
+			const r = dailyRecords[dateStr];
+			studyMinutes = (r.wordsLearned || 0) * 1 + (r.grammarPracticed || 0) * 2 + (r.phoneticPracticed || 0) * 1 + (r.speakPracticed || 0) * 2 + (r.studyMinutes || 0);
+		} else if (streak.studyDates && streak.studyDates.includes(dateStr)) {
+			// 有学习记录但无详细数据，给一个基础值
+			studyMinutes = 30;
+		}
+		
+		const height = studyMinutes > 0 ? Math.min(150, Math.max(20, studyMinutes)) : 10;
 		
 		weekData.push({
 			label: weekDays[i],
-			value: isStudied ? Math.floor(Math.random() * 40) + 40 : 0, // 模拟学习时长
-			height: isStudied ? Math.floor(Math.random() * 80) + 80 : 10,
+			value: studyMinutes,
+			height: height,
 			isToday: i === dayOfWeek
 		});
 	}

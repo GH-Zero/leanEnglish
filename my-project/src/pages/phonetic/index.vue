@@ -1,5 +1,17 @@
 <template>
 	<view class="container">
+		<view class="section progress-section">
+			<text class="section-title">学习进度</text>
+			<view class="progress-card">
+				<view class="progress-info">
+					<text class="progress-text">已掌握：{{ masteredCount }}/48</text>
+					<text class="progress-percent">{{ progressPercent }}%</text>
+				</view>
+				<view class="progress-bar">
+					<view class="progress-fill" :style="{ width: progressPercent + '%' }"></view>
+				</view>
+			</view>
+		</view>
 		<view class="header">
 			<text class="title">音标学习</text>
 			<text class="subtitle">48个英美音标逐个教学</text>
@@ -20,9 +32,9 @@
 			</view>
 		</view>
 		
-		<view class="section">
+		<view class="section list-section">
 			<text class="section-title">音标列表</text>
-			<view class="phonetic-list">
+			<scroll-view class="phonetic-list phonetic-scroll" scroll-y="true" :show-scrollbar="true" enhanced="true">
 				<view class="phonetic-item" v-for="(item, index) in filteredPhonetics" :key="index">
 					<view class="phonetic-symbol">{{ item.symbol }}</view>
 					<view class="phonetic-info">
@@ -34,7 +46,7 @@
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
 					</view>
 				</view>
-			</view>
+			</scroll-view>
 		</view>
 		
 		<!-- 练习弹窗 -->
@@ -59,12 +71,11 @@
 						<text class="score-number">{{ score }}</text>
 						<text class="score-label">发音评分</text>
 						<text class="score-feedback">{{ scoreFeedback }}</text>
-						<text class="score-tip" v-if="!apiKeyConfigured">* 评分仅供参考，配置讯飞API后可获得真实评分</text>
 					</view>
 					
 					<view class="practice-actions">
 						<text class="action-btn play" @click="playSound(currentPractice.symbol, currentPractice.example, currentPractice.chinese)">播放标准发音</text>
-						<text class="action-btn play-my" v-if="recordedFilePath" @click="playMyRecording">播放我的录音</text>
+						<text class="action-btn play-my" v-if="recordedFilePath" @click="playMyRecording">{{ playbackState === 'downloading' ? '下载录音中' : playbackState === 'playing' ? '正在播放' : '播放我的录音' }}</text>
 						<text class="action-btn record" :class="{ recording: isRecording }" @click="toggleRecording">
 							{{ isRecording ? '停止录音' : '开始录音' }}
 						</text>
@@ -74,76 +85,18 @@
 			</view>
 		</view>
 		
-		<view class="section">
-			<text class="section-title">学习进度</text>
-			<view class="progress-card">
-				<view class="progress-info">
-					<text class="progress-text">已掌握：{{ masteredCount }}/48</text>
-					<text class="progress-percent">{{ progressPercent }}%</text>
-				</view>
-				<view class="progress-bar">
-					<view class="progress-fill" :style="{ width: progressPercent + '%' }"></view>
-				</view>
-			</view>
-		</view>
 	</view>
 </template>
 
 <script>
+import { BASE_URL, evaluateSpeech, getPhoneticProgress, updatePhoneticProgress, updatePhoneticStats } from '@/utils/api.js';
+
+
 export default {
 	data() {
 		return {
 			currentCategory: 'vowel',
-			phonetics: [
-				{ symbol: '/iː/', example: 'see', chinese: '长衣音', category: 'vowel' },
-				{ symbol: '/ɪ/', example: 'sit', chinese: '短衣音', category: 'vowel' },
-				{ symbol: '/e/', example: 'bed', chinese: '耶音', category: 'vowel' },
-				{ symbol: '/æ/', example: 'cat', chinese: '大嘴梅花音', category: 'vowel' },
-				{ symbol: '/ɑː/', example: 'car', chinese: '长啊音', category: 'vowel' },
-				{ symbol: '/ɒ/', example: 'hot', chinese: '短哦音', category: 'vowel' },
-				{ symbol: '/ɔː/', example: 'call', chinese: '长哦音', category: 'vowel' },
-				{ symbol: '/ʊ/', example: 'put', chinese: '短乌音', category: 'vowel' },
-				{ symbol: '/uː/', example: 'food', chinese: '长乌音', category: 'vowel' },
-				{ symbol: '/ʌ/', example: 'cup', chinese: '短啊音', category: 'vowel' },
-				{ symbol: '/ɜː/', example: 'bird', chinese: '额长音', category: 'vowel' },
-				{ symbol: '/ə/', example: 'about', chinese: '额短音', category: 'vowel' },
-				{ symbol: '/p/', example: 'pen', chinese: '破音', category: 'consonant' },
-				{ symbol: '/b/', example: 'big', chinese: '波音', category: 'consonant' },
-				{ symbol: '/t/', example: 'tea', chinese: '特音', category: 'consonant' },
-				{ symbol: '/d/', example: 'dog', chinese: '得音', category: 'consonant' },
-				{ symbol: '/k/', example: 'cat', chinese: '科音', category: 'consonant' },
-				{ symbol: '/g/', example: 'go', chinese: '哥音', category: 'consonant' },
-				{ symbol: '/f/', example: 'fun', chinese: '夫音', category: 'consonant' },
-				{ symbol: '/v/', example: 'van', chinese: '屋音', category: 'consonant' },
-				{ symbol: '/θ/', example: 'think', chinese: '思音', category: 'consonant' },
-				{ symbol: '/ð/', example: 'this', chinese: '兹音', category: 'consonant' },
-				{ symbol: '/s/', example: 'see', chinese: '丝音', category: 'consonant' },
-				{ symbol: '/z/', example: 'zoo', chinese: '子音', category: 'consonant' },
-				{ symbol: '/ʃ/', example: 'she', chinese: '诗音', category: 'consonant' },
-				{ symbol: '/ʒ/', example: 'measure', chinese: '日音', category: 'consonant' },
-				{ symbol: '/h/', example: 'hat', chinese: '喝音', category: 'consonant' },
-				{ symbol: '/tʃ/', example: 'chair', chinese: '吃音', category: 'consonant' },
-				{ symbol: '/dʒ/', example: 'job', chinese: '知音', category: 'consonant' },
-				{ symbol: '/tr/', example: 'tree', chinese: '戳音', category: 'consonant' },
-				{ symbol: '/dr/', example: 'dry', chinese: '捉音', category: 'consonant' },
-				{ symbol: '/ts/', example: 'cats', chinese: '次音', category: 'consonant' },
-				{ symbol: '/dz/', example: 'beds', chinese: '子音', category: 'consonant' },
-				{ symbol: '/m/', example: 'man', chinese: '么音', category: 'consonant' },
-				{ symbol: '/n/', example: 'no', chinese: '呢音', category: 'consonant' },
-				{ symbol: '/ŋ/', example: 'sing', chinese: '嗯音', category: 'consonant' },
-				{ symbol: '/l/', example: 'let', chinese: '了音', category: 'consonant' },
-				{ symbol: '/r/', example: 'red', chinese: '若音', category: 'consonant' },
-				{ symbol: '/w/', example: 'we', chinese: '我音', category: 'consonant' },
-				{ symbol: '/j/', example: 'yes', chinese: '呀音', category: 'consonant' },
-				{ symbol: '/eɪ/', example: 'day', chinese: '诶衣', category: 'combination' },
-				{ symbol: '/aɪ/', example: 'my', chinese: '啊衣', category: 'combination' },
-				{ symbol: '/ɔɪ/', example: 'boy', chinese: '哦衣', category: 'combination' },
-				{ symbol: '/aʊ/', example: 'how', chinese: '啊乌', category: 'combination' },
-				{ symbol: '/əʊ/', example: 'go', chinese: '额乌', category: 'combination' },
-				{ symbol: '/ɪə/', example: 'here', chinese: '衣额', category: 'combination' },
-				{ symbol: '/eə/', example: 'there', chinese: '耶额', category: 'combination' },
-				{ symbol: '/ʊə/', example: 'tour', chinese: '乌额', category: 'combination' }
-			],
+			phonetics: [],
 			showPracticeModal: false,
 			currentPractice: {},
 			isRecording: false,
@@ -153,6 +106,8 @@ export default {
 			recordManager: null,
 			masteredCount: 0,
 			recordedFilePath: '',
+			recordedPlaybackUrl: '',
+			playbackState: 'idle',
 			myAudioContext: null,
 			apiKeyConfigured: false
 		}
@@ -167,8 +122,54 @@ export default {
 	},
 	onLoad() {
 		this.initRecorder();
+		this.loadPhonetics();
+		this.loadProgress();
 	},
 	methods: {
+		async loadPhonetics() {
+			try {
+				const res = await new Promise((resolve, reject) => {
+					uni.request({
+						url: BASE_URL + '/phonetic/all',
+						method: 'GET',
+						success: (res) => {
+							if (res.statusCode === 200 && res.data.code === 0) {
+								resolve(res.data.data);
+							} else {
+								reject(res.data.message);
+							}
+						},
+						fail: reject
+					});
+				});
+				this.phonetics = res || [];
+			} catch (e) {
+				console.error('加载音标失败:', e);
+			}
+		},
+		async loadProgress() {
+			try {
+				const progress = await getPhoneticProgress();
+				if (progress) {
+					let count = 0;
+					for (const key in progress) {
+						if (progress[key] && progress[key].mastered) count++;
+					}
+					this.masteredCount = count;
+				}
+			} catch (e) {
+				console.error('加载音标进度失败:', e);
+				// 从本地 storage 读取
+				try {
+					const local = uni.getStorageSync('phoneticProgress') || {};
+					let count = 0;
+					for (const key in local) {
+						if (local[key] && local[key].mastered) count++;
+					}
+					this.masteredCount = count;
+				} catch (err) {}
+			}
+		},
 		switchCategory(category) {
 			this.currentCategory = category;
 		},
@@ -189,11 +190,19 @@ export default {
 			});
 		},
 		startPractice(item) {
+			if (this.myAudioContext) {
+				this.myAudioContext.stop();
+				this.myAudioContext.destroy();
+				this.myAudioContext = null;
+			}
 			this.currentPractice = item;
 			this.showPracticeModal = true;
 			this.showScore = false;
 			this.score = 0;
 			this.scoreFeedback = '';
+			this.recordedFilePath = '';
+			this.recordedPlaybackUrl = '';
+			this.playbackState = 'idle';
 		},
 		closePractice() {
 			this.showPracticeModal = false;
@@ -233,12 +242,14 @@ export default {
 			this.showScore = false;
 			this.isRecording = true;
 			this.recordedFilePath = '';
+			this.recordedPlaybackUrl = '';
+			this.playbackState = 'idle';
 			
 			const options = {
 				duration: 10000,
 				sampleRate: 16000,
 				numberOfChannels: 1,
-				format: 'wav'
+				format: 'mp3'
 			};
 			
 			this.recordManager.start(options);
@@ -280,14 +291,14 @@ export default {
 		},
 		async callEvaluateAPI(audioBase64, word) {
 			try {
-				const { evaluateSpeech } = require('@/utils/api.js');
-				const result = await evaluateSpeech(audioBase64, word);
+				const result = await evaluateSpeech(audioBase64, word, 'read_word', 'mp3');
 				
 				uni.hideLoading();
 				
-				if (result && result.score) {
+				if (result && Number.isFinite(Number(result.score))) {
 					this.score = result.score;
 					this.scoreFeedback = result.feedback || '';
+					this.recordedPlaybackUrl = result.playbackPath ? BASE_URL + result.playbackPath : '';
 					this.showScore = true;
 					
 					// 调用API更新统计
@@ -301,90 +312,115 @@ export default {
 			} catch (error) {
 				uni.hideLoading();
 				console.error('语音评测API失败:', error);
-				
-				// API失败时使用模拟评分
-				this.score = Math.floor(Math.random() * 30) + 70;
-				if (this.score >= 90) {
-					this.scoreFeedback = '发音很棒！继续保持！';
-				} else if (this.score >= 80) {
-					this.scoreFeedback = '发音不错，可以更标准一些。';
-				} else {
-					this.scoreFeedback = '发音需要改进，多练习！';
-				}
-				this.showScore = true;
-				this.updatePhoneticStatsAPI();
+				this.score = 0;
+				this.scoreFeedback = error?.message || '真实语音评测暂不可用，请检查服务配置后重试';
+				this.showScore = false;
+				uni.showToast({ title: this.scoreFeedback, icon: 'none', duration: 3000 });
 			}
 		},
 		async updatePhoneticStatsAPI() {
 			try {
-				const { updatePhoneticStats } = require('@/utils/api.js');
 				await updatePhoneticStats(1);
+				// 更新本地音标进度
+				const phoneticId = this.currentPractice.symbol;
+				if (this.score >= 80) {
+					await updatePhoneticProgress(phoneticId, this.score);
+					// 检查是否已掌握（评分>=80视为掌握）
+					const local = uni.getStorageSync('phoneticProgress') || {};
+					if (!local[phoneticId] || !local[phoneticId].mastered) {
+						local[phoneticId] = { mastered: true, score: this.score };
+						uni.setStorageSync('phoneticProgress', local);
+						this.masteredCount++;
+					}
+				}
 			} catch (error) {
 				console.error('更新音标统计API失败:', error);
 			}
 		},
 		playMyRecording() {
-			if (!this.recordedFilePath) {
-				uni.showToast({
-					title: '没有录音，请先录音',
-					icon: 'none'
-				});
+			if (this.playbackState === 'downloading') return;
+			const source = this.recordedPlaybackUrl || this.recordedFilePath;
+			if (!source) {
+				uni.showToast({ title: '没有录音，请先录音', icon: 'none' });
 				return;
 			}
-			
-			console.log('播放录音:', this.recordedFilePath);
-			
-			// 将录音复制到有.wav后缀的路径，确保能正确播放
-			const fs = uni.getFileSystemManager();
-			const newPath = `${wx.env.USER_DATA_PATH}/recording_${Date.now()}.wav`;
-			
-			fs.copyFile({
-				srcPath: this.recordedFilePath,
-				filePath: newPath,
-				success: () => {
-					console.log('复制录音成功:', newPath);
-					this.doPlayRecording(newPath);
+
+			if (!this.recordedPlaybackUrl) {
+				this.doPlayRecording(source);
+				return;
+			}
+
+			this.playbackState = 'downloading';
+			uni.showLoading({ title: '下载录音中...' });
+			uni.downloadFile({
+				url: this.recordedPlaybackUrl,
+				success: (res) => {
+					uni.hideLoading();
+					if (res.statusCode === 200 && res.tempFilePath) {
+						const destPath = `${wx.env.USER_DATA_PATH}/my_recording_${Date.now()}.mp3`;
+						uni.getFileSystemManager().copyFile({
+							srcPath: res.tempFilePath,
+							destPath,
+							success: () => {
+								this.playbackState = 'ready';
+								this.doPlayRecording(destPath);
+							},
+							fail: (error) => {
+								this.playbackState = 'error';
+								console.error('保存录音失败:', error);
+								uni.showToast({ title: '保存录音失败', icon: 'none' });
+							}
+						});
+					} else {
+						this.playbackState = 'error';
+						uni.showToast({ title: `录音下载失败（${res.statusCode}）`, icon: 'none' });
+					}
 				},
-				fail: (err) => {
-					console.error('复制录音失败:', err);
-					// 直接尝试播放原文件
-					this.doPlayRecording(this.recordedFilePath);
+				fail: (error) => {
+					uni.hideLoading();
+					this.playbackState = 'error';
+					console.error('下载录音失败:', error);
+					uni.showToast({ title: '录音下载失败', icon: 'none' });
 				}
 			});
 		},
 		doPlayRecording(filePath) {
 			if (this.myAudioContext) {
+				this.myAudioContext.stop();
 				this.myAudioContext.destroy();
 			}
-			
-			this.myAudioContext = uni.createInnerAudioContext();
-			this.myAudioContext.src = filePath;
-			this.myAudioContext.obeyMuteSwitch = false;
-			this.myAudioContext.onCanplay(() => {
-				console.log('录音可以播放');
+
+			const audio = uni.createInnerAudioContext();
+			this.myAudioContext = audio;
+			audio.autoplay = false;
+			audio.obeyMuteSwitch = false;
+			audio.volume = 1;
+			audio.startTime = 0;
+			audio.src = filePath;
+			audio.onCanplay(() => {
+				setTimeout(() => audio.play(), 100);
 			});
-			this.myAudioContext.onPlay(() => {
-				console.log('开始播放录音');
-				uni.showToast({
-					title: '正在播放...',
-					icon: 'none',
-					duration: 1000
-				});
+			audio.onPlay(() => {
+				this.playbackState = 'playing';
+				uni.showToast({ title: '正在播放录音', icon: 'none', duration: 1000 });
 			});
-			this.myAudioContext.onError((err) => {
-				console.error('播放录音失败:', err);
-				uni.showToast({
-					title: '播放失败',
-					icon: 'none'
-				});
+			audio.onEnded(() => {
+				this.playbackState = 'ready';
+				uni.showToast({ title: '录音播放完成', icon: 'none' });
 			});
-			this.myAudioContext.play();
+			audio.onError((error) => {
+				this.playbackState = 'error';
+				console.error('播放录音失败:', error);
+				uni.showToast({ title: '录音播放失败', icon: 'none' });
+			});
 		},
 		retryPractice() {
 			this.showScore = false;
 			this.score = 0;
 			this.scoreFeedback = '';
 			this.recordedFilePath = '';
+			this.recordedPlaybackUrl = '';
+			this.playbackState = 'idle';
 		}
 	}
 }
@@ -394,7 +430,9 @@ export default {
 .container {
 	padding: 20rpx;
 	background-color: #F7F5F0;
-	min-height: 100vh;
+	height: 100vh;
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .header {
@@ -418,6 +456,21 @@ export default {
 
 .section {
 	margin: 30rpx 0;
+}
+
+.progress-section {
+	margin-top: 0;
+	margin-bottom: 20rpx;
+}
+
+.list-section {
+	margin-bottom: 0;
+}
+
+.phonetic-scroll {
+	height: calc(100vh - 690rpx);
+	min-height: 360rpx;
+	box-sizing: border-box;
 }
 
 .section-title {

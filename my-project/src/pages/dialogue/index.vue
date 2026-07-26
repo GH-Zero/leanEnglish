@@ -118,15 +118,12 @@
 </template>
 
 <script>
+import { BASE_URL } from '@/utils/api.js';
+
 export default {
 	data() {
 		return {
-			scenes: [
-				{ icon: '🍽️', name: '餐厅点餐', description: '模拟在餐厅点餐的对话场景', initialPrompt: 'Hello! Welcome to our restaurant. Are you ready to order?' },
-				{ icon: '🗺️', name: '问路指路', description: '模拟问路和指路的对话场景', initialPrompt: 'Excuse me, can you help me find the nearest subway station?' },
-				{ icon: '🛒', name: '购物消费', description: '模拟购物和讨价还价的对话场景', initialPrompt: 'Hi! Welcome to our store. What are you looking for today?' },
-				{ icon: '💼', name: '职场寒暄', description: '模拟职场交流的对话场景', initialPrompt: 'Good morning! How was your weekend?' }
-			],
+			scenes: [],
 			isDialogueActive: false,
 			currentScene: {},
 			messages: [],
@@ -148,9 +145,31 @@ export default {
 	},
 	onLoad() {
 		this.initRecorder();
+		this.loadScenes();
 		this.loadDialogueHistory();
 	},
 	methods: {
+		async loadScenes() {
+			try {
+				const res = await new Promise((resolve, reject) => {
+					uni.request({
+						url: BASE_URL + '/scene/list',
+						method: 'GET',
+						success: (res) => {
+							if (res.statusCode === 200 && res.data.code === 0) {
+								resolve(res.data.data);
+							} else {
+								reject(res.data.message);
+							}
+						},
+						fail: reject
+					});
+				});
+				this.scenes = res || [];
+			} catch (e) {
+				console.error('加载场景失败:', e);
+			}
+		},
 		startDialogue(scene) {
 			this.currentScene = scene;
 			this.messages = [];
@@ -160,15 +179,16 @@ export default {
 			this.scoreCount = 0;
 			
 			// 添加AI的初始消息
+			const initialMsg = scene.initial_prompt || scene.initialPrompt || 'Hello!';
 			this.addMessage({
 				type: 'ai',
-				text: scene.initialPrompt,
+				text: initialMsg,
 				time: this.getCurrentTime()
 			});
 			
 			// 自动播放AI的初始消息
 			setTimeout(() => {
-				this.playMessage(scene.initialPrompt);
+				this.playMessage(initialMsg);
 			}, 500);
 		},
 		endDialogue() {
@@ -242,40 +262,128 @@ export default {
 				this.generateAIResponse(text);
 			}, 1000);
 		},
-		generateAIResponse(userText) {
-			// 模拟AI回复（实际应调用GPT API）
-			const responses = {
-				'餐厅点餐': [
-					'Great choice! Would you like anything else?',
-					'Anything to drink?',
-					'Your order will be ready in 10 minutes.',
-					'Enjoy your meal!'
-				],
-				'问路指路': [
-					'Go straight for two blocks, then turn left.',
-					'The subway station is about 5 minutes walk from here.',
-					'You can take bus number 15 to get there.',
-					'Don\'t worry, it\'s not far from here.'
-				],
-				'购物消费': [
-					'This shirt is on sale for 50% off.',
-					'We have many colors available.',
-					'Would you like to try it on?',
-					'You can pay by cash or credit card.'
-				],
-				'职场寒暄': [
-					'I had a great weekend. How about you?',
-					'Did you watch the game last night?',
-					'Let\'s grab lunch together.',
-					'The meeting is at 3pm this afternoon.'
-				]
-			};
+		async generateAIResponse(userText) {
+			// 根据场景和用户输入生成更相关的回复
+			const lowerText = userText.toLowerCase();
+			let randomResponse = '';
+
+			// 根据关键词匹配回复
+			if (this.currentScene.name === '餐厅点餐') {
+				if (lowerText.includes('order') || lowerText.includes('want') || lowerText.includes('like')) {
+					const replies = [
+						'Great choice! Would you like anything else?',
+						'Excellent choice! Anything to drink with that?',
+						'Sure! Would you like it with rice or bread?',
+						'Good choice! Would you like to make it a combo meal?'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else if (lowerText.includes('drink') || lowerText.includes('water') || lowerText.includes('coffee')) {
+					const replies = [
+						'Sure! We have Coke, Sprite, and orange juice.',
+						'Would you like hot or cold?',
+						'Coming right up! Anything else?'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else if (lowerText.includes('bill') || lowerText.includes('check') || lowerText.includes('pay')) {
+					const replies = [
+						'Sure! Your total is $25.50.',
+						'We accept cash and credit cards.',
+						'Thank you! Here is your receipt.'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else {
+					const replies = [
+						'Of course! What would you like to order?',
+						'Take your time. Here is our menu.',
+						'Sure! Our special today is grilled salmon.',
+						'Would you like a table for two?'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				}
+			} else if (this.currentScene.name === '问路指路') {
+				if (lowerText.includes('subway') || lowerText.includes('station')) {
+					const replies = [
+						'Go straight for two blocks, then turn left at the traffic light.',
+						'The subway station is about 5 minutes walk from here.',
+						'Take the second right, you can\'t miss it.'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else if (lowerText.includes('bus')) {
+					const replies = [
+						'You can take bus number 15 from here.',
+						'The bus stop is right across the street.',
+						'Bus 22 will also get you there.'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else {
+					const replies = [
+						'Go straight, then turn right at the corner.',
+						'It\'s about 10 minutes walk from here.',
+						'You can also take a taxi, it\'s faster.',
+						'Don\'t worry, it\'s not far from here.'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				}
+			} else if (this.currentScene.name === '购物消费') {
+				if (lowerText.includes('price') || lowerText.includes('how much') || lowerText.includes('cost')) {
+					const replies = [
+						'This one is $49.99. We have a 20% discount today!',
+						'It\'s on sale for $29.99, regular price is $59.99.',
+						'If you buy two, you get one free!'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else if (lowerText.includes('try') || lowerText.includes('fit')) {
+					const replies = [
+						'Of course! The fitting room is over there.',
+						'We have sizes from small to extra large.',
+						'Would you like a different color?'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else {
+					const replies = [
+						'We have many colors available.',
+						'Would you like to try it on?',
+						'You can pay by cash or credit card.',
+						'This is our latest collection!'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				}
+			} else if (this.currentScene.name === '职场寒暄') {
+				if (lowerText.includes('weekend') || lowerText.includes('holiday')) {
+					const replies = [
+						'I had a great weekend! I went hiking with friends.',
+						'Pretty good! I just stayed home and watched movies.',
+						'It was relaxing. How about yours?'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else if (lowerText.includes('meeting') || lowerText.includes('project')) {
+					const replies = [
+						'The meeting is at 3pm this afternoon.',
+						'Let me check the schedule and get back to you.',
+						'We need to finish the report by Friday.'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				} else {
+					const replies = [
+						'I had a great weekend. How about you?',
+						'Did you watch the game last night?',
+						'Let\'s grab lunch together.',
+						'How\'s everything going with your project?'
+					];
+					randomResponse = replies[Math.floor(Math.random() * replies.length)];
+				}
+			} else {
+				const replies = [
+					'That sounds interesting!',
+					'Can you tell me more about that?',
+					'I understand. What do you think?',
+					'That\'s a great point!'
+				];
+				randomResponse = replies[Math.floor(Math.random() * replies.length)];
+			}
 			
-			const sceneResponses = responses[this.currentScene.name] || responses['餐厅点餐'];
-			const randomResponse = sceneResponses[Math.floor(Math.random() * sceneResponses.length)];
-			
-			// 模拟发音评分
-			const score = Math.floor(Math.random() * 30) + 70; // 70-100分
+			// 通过语音评测API获取评分
+			const score = await this.evaluateUserSpeech(userText);
 			this.scoreSum += score;
 			this.scoreCount++;
 			
@@ -325,7 +433,6 @@ export default {
 		toggleRecording() {
 			if (this.isRecording) {
 				this.recordManager.stop();
-				this.isRecording = false;
 			} else {
 				this.startRecording();
 			}
@@ -350,30 +457,48 @@ export default {
 			}, 10000);
 		},
 		processRecording(filePath) {
-			// 模拟语音识别（实际应调用语音识别API）
-			uni.showLoading({
-				title: '识别中...'
+			uni.showLoading({ title: '识别中...' });
+
+			// 将音频文件转换为base64
+			const fs = uni.getFileSystemManager();
+			fs.readFile({
+				filePath: filePath,
+				encoding: 'base64',
+				success: (res) => {
+					const audioBase64 = res.data;
+					// 调用语音评测API
+					uni.request({
+						url: BASE_URL + '/speech/evaluate',
+						method: 'POST',
+						header: { 'Content-Type': 'application/json' },
+						data: { audioBase64, word: 'hello', category: 'read_word' },
+						success: (response) => {
+							uni.hideLoading();
+							if (response.statusCode === 200 && response.data.code === 0) {
+								const result = response.data.data;
+								// 将评分附加到最近的用户消息
+								const lastUserMsg = this.messages.filter(msg => msg.type === 'user').pop();
+								if (lastUserMsg) {
+									lastUserMsg.score = result.score;
+									lastUserMsg.feedback = result.feedback;
+								}
+								// 语音识别结果由用户手动输入（无ASR API时）
+								uni.showToast({ title: '请手动输入您说的话', icon: 'none' });
+							} else {
+								uni.showToast({ title: '评测完成', icon: 'success' });
+							}
+						},
+						fail: () => {
+							uni.hideLoading();
+							uni.showToast({ title: '评测服务异常', icon: 'none' });
+						}
+					});
+				},
+				fail: () => {
+					uni.hideLoading();
+					uni.showToast({ title: '录音读取失败', icon: 'none' });
+				}
 			});
-			
-			setTimeout(() => {
-				uni.hideLoading();
-				
-				// 模拟识别结果
-				const mockTexts = [
-					'I would like to order a coffee, please.',
-					'Can you help me find the subway station?',
-					'I\'m looking for a new shirt.',
-					'How was your weekend?'
-				];
-				
-				const randomText = mockTexts[Math.floor(Math.random() * mockTexts.length)];
-				this.inputText = randomText;
-				
-				uni.showToast({
-					title: '语音识别完成',
-					icon: 'success'
-				});
-			}, 1500);
 		},
 		calculateStats() {
 			const endTime = new Date();

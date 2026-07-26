@@ -44,23 +44,23 @@
 				<view class="progress-item">
 					<text class="progress-label">音标掌握</text>
 					<view class="progress-bar">
-						<view class="progress-fill" style="width: 0%"></view>
+						<view class="progress-fill" :style="{ width: phoneticPercent + '%' }"></view>
 					</view>
-					<text class="progress-percent">0%</text>
+					<text class="progress-percent">{{ phoneticPercent }}%</text>
 				</view>
 				<view class="progress-item">
 					<text class="progress-label">单词积累</text>
 					<view class="progress-bar">
-						<view class="progress-fill" style="width: 0%"></view>
+						<view class="progress-fill" :style="{ width: wordPercent + '%' }"></view>
 					</view>
-					<text class="progress-percent">0%</text>
+					<text class="progress-percent">{{ wordPercent }}%</text>
 				</view>
 				<view class="progress-item">
 					<text class="progress-label">语法掌握</text>
 					<view class="progress-bar">
-						<view class="progress-fill" style="width: 0%"></view>
+						<view class="progress-fill" :style="{ width: grammarPercent + '%' }"></view>
 					</view>
-					<text class="progress-percent">0%</text>
+					<text class="progress-percent">{{ grammarPercent }}%</text>
 				</view>
 			</view>
 		</view>
@@ -68,8 +68,52 @@
 </template>
 
 <script>
+import { getLearningStats, getWordStatus } from '@/utils/api.js';
+
 export default {
+	data() {
+		return {
+			phoneticPercent: 0,
+			wordPercent: 0,
+			grammarPercent: 0
+		}
+	},
+	onShow() {
+		this.loadProgress();
+	},
 	methods: {
+		async loadProgress() {
+			try {
+				// 音标进度
+				const phoneticProgress = uni.getStorageSync('phoneticProgress') || {};
+				const phoneticKeys = Object.keys(phoneticProgress);
+				const phoneticMastered = phoneticKeys.filter(k => phoneticProgress[k] && phoneticProgress[k].mastered).length;
+				this.phoneticPercent = phoneticKeys.length > 0 ? Math.round((phoneticMastered / 48) * 100) : 0;
+
+				// 单词进度
+				try {
+					const wordStatus = await getWordStatus();
+					if (wordStatus) {
+						const totalWords = Object.keys(wordStatus).length;
+						const masteredWords = Object.keys(wordStatus).filter(k => wordStatus[k].mastered).length;
+						this.wordPercent = totalWords > 0 ? Math.round((masteredWords / Math.max(totalWords, 50)) * 100) : 0;
+					}
+				} catch (e) {
+					const localWordStatus = uni.getStorageSync('wordStatus') || {};
+					const totalWords = Object.keys(localWordStatus).length;
+					this.wordPercent = totalWords > 0 ? Math.min(100, Math.round((totalWords / 50) * 100)) : 0;
+				}
+
+				// 语法进度
+				const grammarProgress = uni.getStorageSync('grammarProgress') || {};
+				const grammarKeys = Object.keys(grammarProgress);
+				const grammarLearned = grammarKeys.filter(k => grammarProgress[k] && grammarProgress[k].status === '已学习').length;
+				const totalGrammarPoints = 15; // 总语法点数
+				this.grammarPercent = grammarKeys.length > 0 ? Math.round((grammarLearned / totalGrammarPoints) * 100) : 0;
+			} catch (e) {
+				console.error('加载进度失败:', e);
+			}
+		},
 		goToPage(url) {
 			const tabBarPages = ['/pages/home/index', '/pages/learn/index', '/pages/speak/index', '/pages/mine/index'];
 			if (tabBarPages.includes(url)) {

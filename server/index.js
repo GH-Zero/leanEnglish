@@ -13,6 +13,11 @@ const statisticsRoutes = require('./routes/statistics');
 const achievementRoutes = require('./routes/achievement');
 const settingsRoutes = require('./routes/settings');
 const speechRoutes = require('./routes/speech');
+const wordsDictRoutes = require('./routes/words-dict');
+const sceneRoutes = require('./routes/scene');
+const shadowRoutes = require('./routes/shadow');
+const grammarQuestionRoutes = require('./routes/grammar-question');
+const grammarPointRoutes = require('./routes/grammar-point');
 
 // 创建Express应用
 const app = express();
@@ -38,7 +43,12 @@ app.use('/api/dialogue', dialogueRoutes);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/achievement', achievementRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/words', wordsDictRoutes);
 app.use('/api/speech', speechRoutes);
+app.use('/api/scene', sceneRoutes);
+app.use('/api/shadow', shadowRoutes);
+app.use('/api/grammar-question', grammarQuestionRoutes);
+app.use('/api/grammar-point', grammarPointRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

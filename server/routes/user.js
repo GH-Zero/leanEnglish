@@ -187,6 +187,29 @@ router.post('/stats/speak', (req, res) => {
 	}
 });
 
+// 更新学习时长
+router.post('/stats/study-time', (req, res) => {
+	try {
+		const userId = parseInt(req.body.userId) || 1;
+		const { minutes = 1 } = req.body;
+
+		db.prepare(`
+			UPDATE learning_stats
+			SET total_study_minutes = total_study_minutes + ?,
+				updated_at = CURRENT_TIMESTAMP
+			WHERE user_id = ?
+		`).run(minutes, userId);
+
+		updateDailyRecord(userId, { study_minutes: minutes });
+
+		const updatedStats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		res.json({ code: 0, data: updatedStats, message: '更新成功' });
+	} catch (error) {
+		console.error('更新学习时长失败:', error);
+		res.status(500).json({ code: 500, message: '服务器错误' });
+	}
+});
+
 // 获取连续学习数据
 router.get('/streak', (req, res) => {
 	try {

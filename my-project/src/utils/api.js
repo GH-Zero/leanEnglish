@@ -4,7 +4,7 @@
  */
 
 // 服务器地址（开发环境）
-const BASE_URL = 'http://localhost:3000/api';
+export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
 // 默认用户ID
 const DEFAULT_USER_ID = 1;
@@ -12,7 +12,7 @@ const DEFAULT_USER_ID = 1;
 /**
  * 通用请求方法
  */
-function request(url, method = 'GET', data = {}) {
+export function request(url, method = 'GET', data = {}) {
 	return new Promise((resolve, reject) => {
 		uni.request({
 			url: BASE_URL + url,
@@ -25,12 +25,15 @@ function request(url, method = 'GET', data = {}) {
 				if (res.statusCode === 200 && res.data.code === 0) {
 					resolve(res.data.data);
 				} else {
-					reject(res.data.message || '请求失败');
+					const error = new Error(res.data?.message || ('请求失败（' + res.statusCode + '）'));
+					error.statusCode = res.statusCode;
+					error.code = res.data?.code;
+					reject(error);
 				}
 			},
 			fail: (err) => {
 				console.error('请求失败:', url, err);
-				reject('网络请求失败');
+				reject(new Error('网络请求失败，请检查后端服务和 API 地址'));
 			}
 		});
 	});
@@ -218,8 +221,8 @@ export function updateSettings(data, userId = DEFAULT_USER_ID) {
 /**
  * 语音评测
  */
-export function evaluateSpeech(audioBase64, word, category = 'read_word') {
-	return request('/speech/evaluate', 'POST', { audioBase64, word, category });
+export function evaluateSpeech(audioBase64, word, category = 'read_word', audioFormat = 'mp3') {
+	return request('/speech/evaluate', 'POST', { audioBase64, word, category, audioFormat });
 }
 
 export default {

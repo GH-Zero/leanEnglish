@@ -108,60 +108,8 @@
 </template>
 
 <script>
-// 单词库
-const wordLibrary = [
-	{ word: 'apple', phonetic: '/ˈæpl/', meaning: '苹果' },
-	{ word: 'book', phonetic: '/bʊk/', meaning: '书' },
-	{ word: 'cat', phonetic: '/kæt/', meaning: '猫' },
-	{ word: 'dog', phonetic: '/dɒɡ/', meaning: '狗' },
-	{ word: 'elephant', phonetic: '/ˈelɪfənt/', meaning: '大象' },
-	{ word: 'fish', phonetic: '/fɪʃ/', meaning: '鱼' },
-	{ word: 'good', phonetic: '/ɡʊd/', meaning: '好的' },
-	{ word: 'happy', phonetic: '/ˈhæpi/', meaning: '快乐的' },
-	{ word: 'ice', phonetic: '/aɪs/', meaning: '冰' },
-	{ word: 'juice', phonetic: '/dʒuːs/', meaning: '果汁' },
-	{ word: 'kind', phonetic: '/kaɪnd/', meaning: '善良的' },
-	{ word: 'love', phonetic: '/lʌv/', meaning: '爱' },
-	{ word: 'music', phonetic: '/ˈmjuːzɪk/', meaning: '音乐' },
-	{ word: 'night', phonetic: '/naɪt/', meaning: '夜晚' },
-	{ word: 'open', phonetic: '/ˈəʊpən/', meaning: '打开' },
-	{ word: 'queen', phonetic: '/kwiːn/', meaning: '女王' },
-	{ word: 'run', phonetic: '/rʌn/', meaning: '跑' },
-	{ word: 'sun', phonetic: '/sʌn/', meaning: '太阳' },
-	{ word: 'tree', phonetic: '/triː/', meaning: '树' },
-	{ word: 'water', phonetic: '/ˈwɔːtə/', meaning: '水' },
-	{ word: 'young', phonetic: '/jʌŋ/', meaning: '年轻的' },
-	{ word: 'beautiful', phonetic: '/ˈbjuːtɪfl/', meaning: '美丽的' },
-	{ word: 'dangerous', phonetic: '/ˈdeɪndʒərəs/', meaning: '危险的' },
-	{ word: 'expensive', phonetic: '/ɪkˈspensɪv/', meaning: '昂贵的' },
-	{ word: 'important', phonetic: '/ɪmˈpɔːtənt/', meaning: '重要的' },
-	{ word: 'interesting', phonetic: '/ˈɪntrəstɪŋ/', meaning: '有趣的' },
-	{ word: 'wonderful', phonetic: '/ˈwʌndəfl/', meaning: '精彩的' },
-	{ word: 'difficult', phonetic: '/ˈdɪfɪkəlt/', meaning: '困难的' },
-	{ word: 'delicious', phonetic: '/dɪˈlɪʃəs/', meaning: '美味的' }
-];
+import { BASE_URL, updateWordStats, updateGrammarStats, updateSpeakStats } from '@/utils/api.js';
 
-// 语法题库
-const grammarLibrary = [
-	{ sentence: 'I ___ a student.', answer: 'am', options: ['am', 'is', 'are', 'be'], explanation: '主语 I 用 am' },
-	{ sentence: 'She ___ English every day.', answer: 'speaks', options: ['speak', 'speaks', 'speaking', 'spoke'], explanation: '主语 She 是第三人称单数，动词加 s' },
-	{ sentence: 'They ___ playing football.', answer: 'are', options: ['is', 'am', 'are', 'was'], explanation: '主语 They 用 are' },
-	{ sentence: 'I ___ to school yesterday.', answer: 'went', options: ['go', 'goes', 'went', 'going'], explanation: 'yesterday 表示过去时，用 went' },
-	{ sentence: 'He ___ like apples.', answer: 'does not', options: ['do not', 'does not', 'is not', 'are not'], explanation: '主语 He 是第三人称单数，用 does not' },
-	{ sentence: '___ you like coffee?', answer: 'Do', options: ['Do', 'Does', 'Is', 'Are'], explanation: '主语 you 用 Do' },
-	{ sentence: 'The cat ___ on the table.', answer: 'is', options: ['is', 'are', 'am', 'be'], explanation: '主语 The cat 是单数，用 is' },
-	{ sentence: 'We ___ happy.', answer: 'are', options: ['is', 'am', 'are', 'was'], explanation: '主语 We 用 are' },
-	{ sentence: 'She ___ a book now.', answer: 'is reading', options: ['read', 'reads', 'is reading', 'readed'], explanation: 'now 表示现在进行时，用 is reading' },
-	{ sentence: 'I ___ finished my homework.', answer: 'have', options: ['have', 'has', 'had', 'having'], explanation: '主语 I 用 have' },
-	{ sentence: '___ it rain yesterday?', answer: 'Did', options: ['Do', 'Does', 'Did', 'Was'], explanation: 'yesterday 表示过去时，用 Did' },
-	{ sentence: 'He ___ two brothers.', answer: 'has', options: ['have', 'has', 'having', 'haves'], explanation: '主语 He 是第三人称单数，用 has' }
-];
-
-// 中文干扰项
-const chineseDistractors = ['快乐的', '悲伤的', '愤怒的', '害怕的', '惊讶的', '无聊的', '有趣的', '简单的', '困难的', '容易的', '重要的', '普通的', '美丽的', '丑陋的', '便宜的', '昂贵的', '安全的', '免费的'];
-
-// 英文干扰项
-const englishDistractors = ['apple', 'book', 'cat', 'dog', 'fish', 'good', 'happy', 'love', 'run', 'sun', 'tree', 'water', 'beautiful', 'dangerous', 'expensive', 'important'];
 
 export default {
 	data() {
@@ -214,42 +162,89 @@ export default {
 			};
 			this.challengeTitle = titles[type] || '每日单词闯关';
 		},
-		loadQuestions() {
-			if (this.challengeType === 'word') {
-				this.loadWordQuestions();
-			} else if (this.challengeType === 'speak') {
-				this.loadSpeakQuestions();
-			} else if (this.challengeType === 'grammar') {
-				this.loadGrammarQuestions();
+		async request(url) {
+			return new Promise((resolve, reject) => {
+				uni.request({
+					url: BASE_URL + url,
+					method: 'GET',
+					header: { 'Content-Type': 'application/json' },
+					success: (res) => {
+						if (res.statusCode === 200 && res.data.code === 0) {
+							resolve(res.data.data);
+						} else {
+							reject(res.data.message || '请求失败');
+						}
+					},
+					fail: (err) => reject(err)
+				});
+			});
+		},
+		async loadQuestions() {
+			uni.showLoading({ title: '加载中...' });
+			try {
+				if (this.challengeType === 'word') {
+					await this.loadWordQuestions();
+				} else if (this.challengeType === 'speak') {
+					await this.loadSpeakQuestions();
+				} else if (this.challengeType === 'grammar') {
+					await this.loadGrammarQuestions();
+				}
+			} catch (e) {
+				console.error('加载题目失败:', e);
+				uni.showToast({ title: '加载失败', icon: 'none' });
+			} finally {
+				uni.hideLoading();
 			}
 		},
-		loadWordQuestions() {
-			const shuffled = [...wordLibrary].sort(() => Math.random() - 0.5);
-			this.questions = shuffled.slice(0, 10).map(item => ({
-				...item,
-				options: this.generateChineseOptions(item.meaning)
+		async loadWordQuestions() {
+			const words = await this.request('/words/random?count=20');
+			if (!words || words.length === 0) {
+				uni.showToast({ title: '暂无单词数据', icon: 'none' });
+				return;
+			}
+			// 从所有单词中随机选3个作为干扰项
+			const allMeanings = words.map(w => w.chinese);
+			this.questions = words.slice(0, 10).map(item => {
+				const others = allMeanings.filter(m => m !== item.chinese);
+				const shuffled = others.sort(() => Math.random() - 0.5).slice(0, 3);
+				return {
+					word: item.word,
+					phonetic: item.phonetic_us,
+					meaning: item.chinese,
+					options: [item.chinese, ...shuffled].sort(() => Math.random() - 0.5)
+				};
+			});
+		},
+		async loadSpeakQuestions() {
+			const words = await this.request('/words/random?count=20');
+			if (!words || words.length === 0) {
+				uni.showToast({ title: '暂无单词数据', icon: 'none' });
+				return;
+			}
+			const allWords = words.map(w => w.word);
+			this.questions = words.slice(0, 10).map(item => {
+				const others = allWords.filter(w => w !== item.word);
+				const shuffled = others.sort(() => Math.random() - 0.5).slice(0, 3);
+				return {
+					word: item.word,
+					phonetic: item.phonetic_us,
+					meaning: item.chinese,
+					options: [item.word, ...shuffled].sort(() => Math.random() - 0.5)
+				};
+			});
+		},
+		async loadGrammarQuestions() {
+			const questions = await this.request('/grammar-question/random?count=10');
+			if (!questions || questions.length === 0) {
+				uni.showToast({ title: '暂无语法题', icon: 'none' });
+				return;
+			}
+			this.questions = questions.map(q => ({
+				sentence: q.sentence,
+				answer: q.answer,
+				options: q.options,
+				explanation: q.explanation
 			}));
-		},
-		loadSpeakQuestions() {
-			const shuffled = [...wordLibrary].sort(() => Math.random() - 0.5);
-			this.questions = shuffled.slice(0, 10).map(item => ({
-				...item,
-				options: this.generateEnglishOptions(item.word)
-			}));
-		},
-		loadGrammarQuestions() {
-			const shuffled = [...grammarLibrary].sort(() => Math.random() - 0.5);
-			this.questions = shuffled.slice(0, 10);
-		},
-		generateChineseOptions(correctMeaning) {
-			const others = chineseDistractors.filter(d => d !== correctMeaning);
-			const shuffled = others.sort(() => Math.random() - 0.5).slice(0, 3);
-			return [correctMeaning, ...shuffled].sort(() => Math.random() - 0.5);
-		},
-		generateEnglishOptions(correctWord) {
-			const others = englishDistractors.filter(d => d !== correctWord);
-			const shuffled = others.sort(() => Math.random() - 0.5).slice(0, 3);
-			return [correctWord, ...shuffled].sort(() => Math.random() - 0.5);
 		},
 		playWord() {
 			const word = this.currentQuestion.word;
@@ -296,12 +291,28 @@ export default {
 		nextQuestion() {
 			if (this.currentIndex === this.questions.length - 1) {
 				this.completed = true;
+				this.recordChallengeResult();
 				return;
 			}
 			this.currentIndex++;
 			this.selectedOption = -1;
 			this.showResult = false;
 			this.isCorrect = false;
+		},
+		async recordChallengeResult() {
+			const accuracy = this.correctCount / this.questions.length;
+			const isCorrect = accuracy >= 0.6;
+			try {
+				if (this.challengeType === 'word') {
+					await updateWordStats(this.correctCount, isCorrect);
+				} else if (this.challengeType === 'grammar') {
+					await updateGrammarStats(this.correctCount, isCorrect);
+				} else if (this.challengeType === 'speak') {
+					await updateSpeakStats(this.correctCount);
+				}
+			} catch (e) {
+				console.error('记录闯关结果失败:', e);
+			}
 		},
 		restartChallenge() {
 			this.currentIndex = 0;

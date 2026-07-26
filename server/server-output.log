@@ -1,0 +1,20 @@
+✅ SQLite数据库连接成功
+✅ 数据库表初始化完成
+✅ 服务器已启动，监听端口: 3000
+📡 API地址: http://localhost:3000/api
+💾 数据库: SQLite (本地文件)
+2026-07-26T07:20:28.846Z - GET /api/user/stats?userId=1
+2026-07-26T07:20:28.863Z - GET /api/user/streak?userId=1
+2026-07-26T07:20:54.829Z - GET /api/user/stats?userId=1
+2026-07-26T07:20:54.853Z - GET /api/user/streak?userId=1
+2026-07-26T07:21:03.246Z - GET /api/phonetic/all
+2026-07-26T07:21:03.252Z - GET /api/phonetic/progress?userId=1
+2026-07-26T07:21:12.169Z - POST /api/speech/evaluate
+语音音频格式: { encoding: 'mp3', inputBytes: 27545 }
+2026-07-26T07:21:25.183Z - POST /api/user/stats/phonetic
+2026-07-26T07:21:29.833Z - GET /api/speech/recording/fce8610a4d15d52da814b76044bb5d85
+2026-07-26T07:22:21.839Z - GET /api/speech/recording/fce8610a4d15d52da814b76044bb5d85
+2026-07-26T07:22:28.901Z - GET /api/speech/recording/fce8610a4d15d52da814b76044bb5d85
+2026-07-26T07:22:30.017Z - GET /api/speech/recording/fce8610a4d15d52da814b76044bb5d85
+2026-07-26T07:33:35.577Z - GET /api/phonetic/all
+2026-07-26T07:33:35.581Z - GET /api/phonetic/progress?userId=1

@@ -143,6 +143,8 @@
 </template>
 
 <script>
+import { BASE_URL } from '@/utils/api.js';
+
 export default {
 	data() {
 		return {
@@ -156,137 +158,7 @@ export default {
 			isCorrect: false,
 			correctCount: 0,
 			totalQuestions: 0,
-			grammarPoints: [
-				// 阶段1：基础句型
-				{
-					id: 1,
-					title: '一般现在时',
-					description: '表示经常性、习惯性的动作或状态',
-					stage: 1,
-					status: '未学习',
-					explanation: '一般现在时表示经常发生的动作或存在的状态。常与always, usually, often, sometimes, every day等时间状语连用。\n\n结构：主语 + 动词原形（第三人称单数加s/es）\n否定句：主语 + don\'t/doesn\'t + 动词原形\n疑问句：Do/Does + 主语 + 动词原形？',
-					examples: [
-						'I go to school every day.',
-						'She likes reading books.',
-						'They don\'t play football.',
-						'Does he speak English?'
-					],
-					questions: [
-						{
-							question: 'She ___ to school every day.',
-							options: ['go', 'goes', 'going', 'went'],
-							answer: 1,
-							explanation: '主语是第三人称单数she，动词要用goes。'
-						},
-						{
-							question: 'They ___ like coffee.',
-							options: ['don\'t', 'doesn\'t', 'isn\'t', 'aren\'t'],
-							answer: 0,
-							explanation: '主语是复数they，否定用don\'t。'
-						},
-						{
-							question: '___ he speak Chinese?',
-							options: ['Do', 'Does', 'Is', 'Are'],
-							answer: 1,
-							explanation: '主语是第三人称单数he，疑问句用Does。'
-						}
-					]
-				},
-				{
-					id: 2,
-					title: '一般过去时',
-					description: '表示过去发生的动作或状态',
-					stage: 1,
-					status: '未学习',
-					explanation: '一般过去时表示过去某个时间发生的动作或存在的状态。常与yesterday, last week, in 2020等时间状语连用。\n\n结构：主语 + 动词过去式\n否定句：主语 + didn\'t + 动词原形\n疑问句：Did + 主语 + 动词原形？',
-					examples: [
-						'I went to Beijing last year.',
-						'She watched TV yesterday.',
-						'They didn\'t go to school.',
-						'Did you see him?'
-					],
-					questions: [
-						{
-							question: 'I ___ to the park yesterday.',
-							options: ['go', 'goes', 'went', 'going'],
-							answer: 2,
-							explanation: 'yesterday表示过去时间，用went。'
-						},
-						{
-							question: 'She ___ dinner last night.',
-							options: ['cook', 'cooks', 'cooked', 'cooking'],
-							answer: 2,
-							explanation: 'last night表示过去时间，用cooked。'
-						}
-					]
-				},
-				{
-					id: 3,
-					title: '现在进行时',
-					description: '表示正在进行的动作',
-					stage: 1,
-					status: '未学习',
-					explanation: '现在进行时表示说话时正在进行的动作。常与now, at the moment等时间状语连用。\n\n结构：主语 + am/is/are + 动词ing',
-					examples: [
-						'I am reading a book now.',
-						'She is cooking dinner.',
-						'They are playing football.',
-						'What are you doing?'
-					],
-					questions: [
-						{
-							question: 'Look! The children ___ in the park.',
-							options: ['play', 'plays', 'are playing', 'played'],
-							answer: 2,
-							explanation: 'Look!表示现在正在进行，用are playing。'
-						}
-					]
-				},
-				{
-					id: 4,
-					title: '一般将来时',
-					description: '表示将来发生的动作或状态',
-					stage: 1,
-					status: '未学习',
-					explanation: '一般将来时表示将来某个时间要发生的动作或存在的状态。\n\n结构：主语 + will + 动词原形\n或：主语 + be going to + 动词原形',
-					examples: [
-						'I will go to Shanghai tomorrow.',
-						'She is going to study English.',
-						'They will have a meeting.',
-						'We are going to have a party.'
-					],
-					questions: [
-						{
-							question: 'We ___ have a picnic next Sunday.',
-							options: ['are going to', 'will', 'Both A and B', 'None of the above'],
-							answer: 2,
-							explanation: 'will和be going to都可以表示将来。'
-						}
-					]
-				},
-				{
-					id: 5,
-					title: '过去进行时',
-					description: '表示过去某一时刻正在进行的动作',
-					stage: 1,
-					status: '未学习',
-					explanation: '过去进行时表示过去某一时刻或某一段时间正在进行的动作。\n\n结构：主语 + was/were + 动词ing',
-					examples: [
-						'I was sleeping at 10 last night.',
-						'She was watching TV when I came.',
-						'They were playing football.',
-						'What were you doing then?'
-					],
-					questions: [
-						{
-							question: 'I ___ when the phone rang.',
-							options: ['am sleeping', 'was sleeping', 'slept', 'sleep'],
-							answer: 1,
-							explanation: '过去某一时刻正在进行，用was sleeping。'
-						}
-					]
-				}
-			],
+			grammarPoints: [],
 			stageProgress: {
 				1: 0,
 				2: 0,
@@ -306,18 +178,72 @@ export default {
 			return null;
 		}
 	},
+	onLoad() {
+		this.loadGrammarPoints();
+	},
 	methods: {
+		async loadGrammarPoints() {
+			try {
+				const res = await new Promise((resolve, reject) => {
+					uni.request({
+						url: BASE_URL + '/grammar-point/list',
+						method: 'GET',
+						success: (res) => {
+							if (res.statusCode === 200 && res.data.code === 0) {
+								resolve(res.data.data);
+							} else {
+								reject(res.data.message);
+							}
+						},
+						fail: reject
+					});
+				});
+				// 为每个知识点添加状态
+				this.grammarPoints = (res || []).map(p => ({
+					...p,
+					status: '未学习',
+					questions: []
+				}));
+				this.updateProgress();
+			} catch (e) {
+				console.error('加载语法知识点失败:', e);
+			}
+		},
+		async loadGrammarDetail(grammar) {
+			try {
+				const res = await new Promise((resolve, reject) => {
+					uni.request({
+						url: BASE_URL + `/grammar-point/detail/${grammar.id}`,
+						method: 'GET',
+						success: (res) => {
+							if (res.statusCode === 200 && res.data.code === 0) {
+								resolve(res.data.data);
+							} else {
+								reject(res.data.message);
+							}
+						},
+						fail: reject
+					});
+				});
+				return res;
+			} catch (e) {
+				console.error('加载语法详情失败:', e);
+				return grammar;
+			}
+		},
 		selectStage(stage) {
 			this.currentStage = stage;
 		},
-		startLearning(grammar) {
-			this.currentGrammar = grammar;
+		async startLearning(grammar) {
+			// 从 API 加载完整详情（包含练习题）
+			const detail = await this.loadGrammarDetail(grammar);
+			this.currentGrammar = detail;
 			this.learningStep = 'explain';
 			this.currentQuestionIndex = 0;
 			this.selectedOption = -1;
 			this.showResult = false;
 			this.correctCount = 0;
-			this.totalQuestions = grammar.questions ? grammar.questions.length : 0;
+			this.totalQuestions = detail.questions ? detail.questions.length : 0;
 			this.showLearningModal = true;
 		},
 		closeLearning() {
@@ -345,7 +271,9 @@ export default {
 				return;
 			}
 			
-			this.isCorrect = this.selectedOption === this.currentQuestion.answer;
+			// answer 是选项文本，需要比较选项文本
+			const selectedText = this.currentQuestion.options[this.selectedOption];
+			this.isCorrect = selectedText === this.currentQuestion.answer;
 			if (this.isCorrect) {
 				this.correctCount++;
 			}
@@ -372,20 +300,60 @@ export default {
 
 			// 调用API更新统计
 			this.updateGrammarStatsAPI();
+			this.updateProgress();
 		},
 		async updateGrammarStatsAPI() {
 			try {
-				const { updateGrammarStats } = require('@/utils/api.js');
-				await updateGrammarStats(1, this.practiceScore >= 60);
+				uni.request({
+					url: BASE_URL + '/user/stats/grammar',
+					method: 'POST',
+					header: { 'Content-Type': 'application/json' },
+					data: { count: 1, isCorrect: this.practiceScore >= 60, userId: 1 }
+				});
 			} catch (error) {
 				console.error('更新语法统计API失败:', error);
 			}
 		},
-		startQuickPractice() {
-			uni.showToast({
-				title: '开始快速练习',
-				icon: 'none'
-			});
+		async startQuickPractice() {
+			try {
+				const res = await new Promise((resolve, reject) => {
+					uni.request({
+						url: BASE_URL + '/grammar-question/random?count=10',
+						method: 'GET',
+						success: (res) => {
+							if (res.statusCode === 200 && res.data.code === 0) {
+								resolve(res.data.data);
+							} else {
+								reject(res.data.message);
+							}
+						},
+						fail: reject
+					});
+				});
+				if (res && res.length > 0) {
+					// 将随机题目作为虚拟语法点进行练习
+					this.currentGrammar = {
+						id: 0,
+						title: '快速练习',
+						questions: res.map(q => ({
+							question: q.sentence,
+							options: q.options,
+							answer: q.answer,
+							explanation: q.explanation
+						}))
+					};
+					this.learningStep = 'practice';
+					this.currentQuestionIndex = 0;
+					this.selectedOption = -1;
+					this.showResult = false;
+					this.correctCount = 0;
+					this.totalQuestions = res.length;
+					this.showLearningModal = true;
+				}
+			} catch (e) {
+				console.error('加载快速练习题失败:', e);
+				uni.showToast({ title: '加载失败', icon: 'none' });
+			}
 		},
 		updateProgress() {
 			for (let stage = 1; stage <= 3; stage++) {
