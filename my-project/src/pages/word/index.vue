@@ -4,34 +4,31 @@
 			<text class="title">单词学习</text>
 			<text class="subtitle">艾宾浩斯科学记忆</text>
 		</view>
-
-		<!-- 词库选择 -->
+		<!-- 每日单词类型 -->
 		<view class="section">
-			<text class="section-title">词库选择</text>
-			<view class="wordbook-list">
-				<view class="wordbook-item" :class="{ active: currentLevel === 0 }" @click="selectLevel(0)">
-					<view class="wordbook-info">
-						<text class="wordbook-name">零基础入门词</text>
-						<text class="wordbook-count">{{ levelCounts[0] || 0 }}词</text>
-					</view>
-					<text class="wordbook-arrow">›</text>
+			<text class="section-title">每日单词类型</text>
+			<view class="daily-category-card">
+				<view class="category-main">
+					<text class="category-label">今日学习</text>
+					<text class="category-name">{{ todayCategory || '加载中' }}</text>
+					<text class="category-desc">{{ todayCategoryDescription }}</text>
 				</view>
-				<view class="wordbook-item" :class="{ active: currentLevel === 1 }" @click="selectLevel(1)">
-					<view class="wordbook-info">
-						<text class="wordbook-name">日常交流核心词</text>
-						<text class="wordbook-count">{{ levelCounts[1] || 0 }}词</text>
-					</view>
-					<text class="wordbook-arrow">›</text>
-				</view>
-				<view class="wordbook-item" :class="{ active: currentLevel === 2 }" @click="selectLevel(2)">
-					<view class="wordbook-info">
-						<text class="wordbook-name">进阶高频口语词</text>
-						<text class="wordbook-count">{{ levelCounts[2] || 0 }}词</text>
-					</view>
-					<text class="wordbook-arrow">›</text>
+				<view class="category-meta">
+					<text>本类 {{ categoryCount }} 词</text>
+					<text>明日：{{ nextCategory || '--' }}</text>
 				</view>
 			</view>
+			<scroll-view class="category-scroll" scroll-x>
+				<view class="category-list">
+					<view class="category-chip" v-for="item in categoryStats" :key="item.category"
+						:class="{ active: item.category === todayCategory }">
+						<text class="chip-name">{{ item.category }}</text>
+						<text class="chip-count">{{ item.count }}</text>
+					</view>
+				</view>
+			</scroll-view>
 		</view>
+
 
 		<!-- 今日学习统计 -->
 		<view class="section">
@@ -237,6 +234,11 @@ export default {
 	data() {
 		return {
 			currentLevel: 0,
+			todayCategory: '',
+			todayCategoryDescription: '',
+			nextCategory: '',
+			categoryCount: 0,
+			categoryStats: [],
 			dailyPlan: 10,
 			showBack: false,
 			currentWordIndex: 0,
@@ -349,33 +351,38 @@ export default {
 		async loadWordCounts() {
 			try {
 				const res = await this.request('/words/count');
-				if (res && res.stats) {
+				if (res) {
 					const counts = {};
-					res.stats.forEach(s => counts[s.level] = s.count);
+					(res.stats || []).forEach(item => counts[item.level] = item.count);
 					this.levelCounts = counts;
+					this.categoryStats = res.categories || [];
 				}
-			} catch (e) {
-				console.error('加载词数统计失败:', e);
+			} catch (error) {
+				console.error('加载单词统计失败:', error);
 			}
 		},
 		async loadWords() {
 			this.loading = true;
 			try {
-				const res = await this.request(`/words/unlearned?userId=1&level=${this.currentLevel}&limit=${this.dailyPlan}`);
+				const res = await this.request(`/words/daily?userId=1&limit=${this.dailyPlan}`);
 				if (res && res.words) {
 					this.wordList = res.words;
 					this.todayNew = res.newCount || 0;
 					this.todayReview = res.reviewCount || 0;
+					this.todayCategory = res.category || '';
+					this.todayCategoryDescription = res.categoryDescription || '';
+					this.nextCategory = res.nextCategory || '';
+					this.categoryCount = res.categoryCount || 0;
 					this.currentWordIndex = 0;
 					this.showBack = false;
 				}
-			} catch (e) {
-				console.error('加载单词失败:', e);
+			} catch (error) {
+				console.error('加载每日分类单词失败:', error);
+				uni.showToast({ title: '加载每日单词失败', icon: 'none' });
 			} finally {
 				this.loading = false;
 			}
-		},
-		async loadStats() {
+		},		async loadStats() {
 			try {
 				const statusRes = await getWordStatus();
 				if (statusRes) {
@@ -654,6 +661,39 @@ export default {
 	margin-bottom: 20rpx;
 	display: block;
 }
+/* 每日类型 */
+.daily-category-card {
+	background: linear-gradient(135deg, #0D9488, #0F766E);
+	border-radius: 20rpx;
+	padding: 30rpx;
+	color: #FFFFFF;
+}
+.category-main { display: flex; flex-direction: column; }
+.category-label { font-size: 24rpx; opacity: 0.82; }
+.category-name { font-size: 52rpx; font-weight: bold; margin: 8rpx 0; }
+.category-desc { font-size: 25rpx; opacity: 0.92; }
+.category-meta {
+	display: flex;
+	justify-content: space-between;
+	font-size: 24rpx;
+	margin-top: 24rpx;
+	padding-top: 20rpx;
+	border-top: 1rpx solid rgba(255,255,255,0.25);
+}
+.category-scroll { white-space: nowrap; margin-top: 18rpx; }
+.category-list { display: inline-flex; gap: 14rpx; padding-bottom: 4rpx; }
+.category-chip {
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+	background: #FFFFFF;
+	border: 2rpx solid #E5E7EB;
+	border-radius: 30rpx;
+	padding: 12rpx 20rpx;
+}
+.category-chip.active { background: #E6F7F5; border-color: #0D9488; }
+.chip-name { font-size: 25rpx; color: #1F3A5F; font-weight: 600; }
+.chip-count { font-size: 22rpx; color: #7A7A7A; }
 /* 词库 */
 .wordbook-list {
 	background-color: #FFFFFF;
@@ -710,16 +750,14 @@ export default {
 }
 /* 学习模式选择 */
 .mode-grid {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: space-between;
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 20rpx;
 }
 .mode-card {
-	width: 48%;
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
-	padding: 30rpx 20rpx;
-	margin-bottom: 20rpx;
+	padding: 30rpx 15rpx;
 	text-align: center;
 	box-shadow: 0 2rpx 8rpx rgba(0,0,0,0.08);
 }

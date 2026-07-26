@@ -1,30 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取学习统计数据
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
 
 		// 获取基础统计
-		const stats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
-		const streak = db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
+		const stats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const streak = await db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
 
 		// 获取学习日期
-		const studyDates = db.prepare(`
+		const studyDateRows = await db.prepare(`
 			SELECT DISTINCT date FROM daily_records
 			WHERE user_id = ? AND (words_learned > 0 OR grammar_practiced > 0 OR phonetic_practiced > 0 OR speak_practiced > 0)
 			ORDER BY date DESC
 			LIMIT 30
-		`).all(userId).map(r => r.date);
+		`).all(userId);
+		const studyDates = studyDateRows.map(r => r.date);
 
 		// 获取本周数据
-		const weekData = getWeekData(userId);
+		const weekData = await getWeekData(userId);
 
 		// 获取今日记录
 		const today = new Date().toISOString().split('T')[0];
-		const todayRecord = db.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(userId, today);
+		const todayRecord = await db.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(userId, today);
 
 		res.json({
 			code: 0,
@@ -56,7 +57,7 @@ router.get('/', (req, res) => {
 });
 
 // 获取本周学习数据
-function getWeekData(userId) {
+async function getWeekData(userId) {
 	const today = new Date();
 	const dayOfWeek = today.getDay();
 	const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
@@ -68,7 +69,7 @@ function getWeekData(userId) {
 		const dateStr = date.toISOString().split('T')[0];
 
 		// 查询当天学习记录
-		const record = db.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(userId, dateStr);
+		const record = await db.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(userId, dateStr);
 		const hasStudy = record && (record.words_learned > 0 || record.grammar_practiced > 0 || record.phonetic_practiced > 0 || record.speak_practiced > 0);
 
 		weekData.push({

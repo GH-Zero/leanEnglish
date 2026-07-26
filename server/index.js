@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { initDatabase } = require('./database-sqlite');
+const { initDatabase } = require('./database');
 
 // 导入路由
 const userRoutes = require('./routes/user');
@@ -52,7 +52,7 @@ app.use('/api/grammar-point', grammarPointRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {
-	res.json({ status: 'ok', timestamp: new Date().toISOString(), database: 'SQLite' });
+	res.json({ status: 'ok', timestamp: new Date().toISOString(), database: 'MySQL' });
 });
 
 // 404处理
@@ -70,13 +70,13 @@ app.use((err, req, res, next) => {
 async function startServer() {
 	try {
 		// 初始化数据库
-		initDatabase();
+		await initDatabase();
 
 		// 启动Express服务器
 		app.listen(PORT, () => {
 			console.log(`✅ 服务器已启动，监听端口: ${PORT}`);
 			console.log(`📡 API地址: http://localhost:${PORT}/api`);
-			console.log(`💾 数据库: SQLite (本地文件)`);
+			console.log(`💾 数据库: MySQL`);
 		});
 	} catch (error) {
 		console.error('❌ 服务器启动失败:', error.message);

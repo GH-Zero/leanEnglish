@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取语法知识点列表（支持阶段筛选）
-router.get('/list', (req, res) => {
+router.get('/list', async (req, res) => {
 	try {
 		const { stage } = req.query;
 		let sql = 'SELECT * FROM grammar_points';
@@ -15,7 +15,7 @@ router.get('/list', (req, res) => {
 		}
 
 		sql += ' ORDER BY sort_order ASC';
-		const points = db.prepare(sql).all(...params);
+		const points = await db.prepare(sql).all(...params);
 
 		// 解析 examples JSON
 		points.forEach(p => {
@@ -30,16 +30,16 @@ router.get('/list', (req, res) => {
 });
 
 // 获取单个语法知识点详情
-router.get('/detail/:id', (req, res) => {
+router.get('/detail/:id', async (req, res) => {
 	try {
-		const point = db.prepare('SELECT * FROM grammar_points WHERE id = ?').get(req.params.id);
+		const point = await db.prepare('SELECT * FROM grammar_points WHERE id = ?').get(req.params.id);
 		if (!point) {
 			return res.json({ code: -1, message: '知识点不存在' });
 		}
 		try { point.examples = JSON.parse(point.examples); } catch (e) { point.examples = []; }
 
 		// 获取该知识点的练习题
-		const questions = db.prepare('SELECT * FROM grammar_questions WHERE grammar_id = ? ORDER BY sort_order ASC').all(req.params.id);
+		const questions = await db.prepare('SELECT * FROM grammar_questions WHERE grammar_id = ? ORDER BY sort_order ASC').all(req.params.id);
 		questions.forEach(q => {
 			try { q.options = JSON.parse(q.options); } catch (e) { q.options = []; }
 		});

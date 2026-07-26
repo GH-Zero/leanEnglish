@@ -1,4 +1,5 @@
-const { db, initDatabase } = require('./database-sqlite');
+const { db } = require('./db');
+const { initDatabase, closeDatabase } = require('./database');
 
 // 单词数据
 const words = [
@@ -217,37 +218,116 @@ const words = [
 	{ word: 'tolerance', phonetic_us: '/ˈtɑːlərəns/', phonetic_uk: '/ˈtɒlərəns/', chinese: '容忍', example: 'We need more tolerance.', level: 2, tag: '名词' },
 	{ word: 'whereas', phonetic_us: '/werˈæz/', phonetic_uk: '/weərˈæz/', chinese: '然而', example: 'He is tall, whereas she is short.', level: 2, tag: '连词' },
 	{ word: 'withstand', phonetic_us: '/wɪðˈstænd/', phonetic_uk: '/wɪðˈstænd/', chinese: '承受', example: 'This building can withstand earthquakes.', level: 2, tag: '动词' },
+
+	// ========== 新增基础词汇 ==========
+	{ word: 'window', phonetic_us: '/ˈwɪndoʊ/', phonetic_uk: '/ˈwɪndəʊ/', chinese: '窗户', example: 'Please open the window.', level: 0, tag: '家居' },
+	{ word: 'door', phonetic_us: '/dɔːr/', phonetic_uk: '/dɔː/', chinese: '门', example: 'Please close the door.', level: 0, tag: '家居' },
+	{ word: 'floor', phonetic_us: '/flɔːr/', phonetic_uk: '/flɔː/', chinese: '地板；楼层', example: 'The keys are on the floor.', level: 0, tag: '家居' },
+	{ word: 'wall', phonetic_us: '/wɔːl/', phonetic_uk: '/wɔːl/', chinese: '墙', example: 'There is a picture on the wall.', level: 0, tag: '家居' },
+	{ word: 'kitchen', phonetic_us: '/ˈkɪtʃɪn/', phonetic_uk: '/ˈkɪtʃɪn/', chinese: '厨房', example: 'Dinner is ready in the kitchen.', level: 0, tag: '家居' },
+	{ word: 'bedroom', phonetic_us: '/ˈbedruːm/', phonetic_uk: '/ˈbedruːm/', chinese: '卧室', example: 'My bedroom is small but comfortable.', level: 0, tag: '家居' },
+	{ word: 'bathroom', phonetic_us: '/ˈbæθruːm/', phonetic_uk: '/ˈbɑːθruːm/', chinese: '浴室；洗手间', example: 'The bathroom is upstairs.', level: 0, tag: '家居' },
+	{ word: 'garden', phonetic_us: '/ˈɡɑːrdn/', phonetic_uk: '/ˈɡɑːdn/', chinese: '花园', example: 'Flowers grow in the garden.', level: 0, tag: '地点' },
+	{ word: 'street', phonetic_us: '/striːt/', phonetic_uk: '/striːt/', chinese: '街道', example: 'The bank is across the street.', level: 0, tag: '地点' },
+	{ word: 'bridge', phonetic_us: '/brɪdʒ/', phonetic_uk: '/brɪdʒ/', chinese: '桥', example: 'We walked across the bridge.', level: 0, tag: '地点' },
+	{ word: 'river', phonetic_us: '/ˈrɪvər/', phonetic_uk: '/ˈrɪvə/', chinese: '河流', example: 'The river flows through the city.', level: 0, tag: '自然' },
+	{ word: 'mountain', phonetic_us: '/ˈmaʊntn/', phonetic_uk: '/ˈmaʊntɪn/', chinese: '山', example: 'They climbed the mountain together.', level: 0, tag: '自然' },
+	{ word: 'forest', phonetic_us: '/ˈfɔːrɪst/', phonetic_uk: '/ˈfɒrɪst/', chinese: '森林', example: 'Many animals live in the forest.', level: 0, tag: '自然' },
+	{ word: 'beach', phonetic_us: '/biːtʃ/', phonetic_uk: '/biːtʃ/', chinese: '海滩', example: 'We spent the afternoon at the beach.', level: 0, tag: '自然' },
+	{ word: 'island', phonetic_us: '/ˈaɪlənd/', phonetic_uk: '/ˈaɪlənd/', chinese: '岛屿', example: 'They live on a small island.', level: 0, tag: '自然' },
+	{ word: 'afternoon', phonetic_us: '/ˌæftərˈnuːn/', phonetic_uk: '/ˌɑːftəˈnuːn/', chinese: '下午', example: 'I will call you this afternoon.', level: 0, tag: '时间' },
+	{ word: 'evening', phonetic_us: '/ˈiːvnɪŋ/', phonetic_uk: '/ˈiːvnɪŋ/', chinese: '晚上；傍晚', example: 'We usually walk in the evening.', level: 0, tag: '时间' },
+	{ word: 'weekend', phonetic_us: '/ˌwiːkˈend/', phonetic_uk: '/ˌwiːkˈend/', chinese: '周末', example: 'What are you doing this weekend?', level: 0, tag: '时间' },
+	{ word: 'holiday', phonetic_us: '/ˈhɑːlədeɪ/', phonetic_uk: '/ˈhɒlədeɪ/', chinese: '假期；节日', example: 'We are planning a summer holiday.', level: 0, tag: '时间' },
+	{ word: 'birthday', phonetic_us: '/ˈbɜːrθdeɪ/', phonetic_uk: '/ˈbɜːθdeɪ/', chinese: '生日', example: 'Today is my sister\'s birthday.', level: 0, tag: '生活' },
+
+	// ========== 新增日常词汇 ==========
+	{ word: 'appointment', phonetic_us: '/əˈpɔɪntmənt/', phonetic_uk: '/əˈpɔɪntmənt/', chinese: '预约；约会', example: 'I have a doctor\'s appointment tomorrow.', level: 1, tag: '生活' },
+	{ word: 'reservation', phonetic_us: '/ˌrezərˈveɪʃn/', phonetic_uk: '/ˌrezəˈveɪʃn/', chinese: '预订', example: 'I would like to make a reservation.', level: 1, tag: '餐厅' },
+	{ word: 'receipt', phonetic_us: '/rɪˈsiːt/', phonetic_uk: '/rɪˈsiːt/', chinese: '收据', example: 'Please keep your receipt.', level: 1, tag: '购物' },
+	{ word: 'luggage', phonetic_us: '/ˈlʌɡɪdʒ/', phonetic_uk: '/ˈlʌɡɪdʒ/', chinese: '行李', example: 'Her luggage is very heavy.', level: 1, tag: '旅行' },
+	{ word: 'passport', phonetic_us: '/ˈpæspɔːrt/', phonetic_uk: '/ˈpɑːspɔːt/', chinese: '护照', example: 'Do not forget your passport.', level: 1, tag: '旅行' },
+	{ word: 'traffic', phonetic_us: '/ˈtræfɪk/', phonetic_uk: '/ˈtræfɪk/', chinese: '交通；车流', example: 'There is heavy traffic this morning.', level: 1, tag: '交通' },
+	{ word: 'journey', phonetic_us: '/ˈdʒɜːrni/', phonetic_uk: '/ˈdʒɜːni/', chinese: '旅程', example: 'The train journey took three hours.', level: 1, tag: '旅行' },
+	{ word: 'customer', phonetic_us: '/ˈkʌstəmər/', phonetic_uk: '/ˈkʌstəmə/', chinese: '顾客', example: 'The customer asked for help.', level: 1, tag: '购物' },
+	{ word: 'colleague', phonetic_us: '/ˈkɑːliːɡ/', phonetic_uk: '/ˈkɒliːɡ/', chinese: '同事', example: 'My colleague helped me finish the report.', level: 1, tag: '职场' },
+	{ word: 'interview', phonetic_us: '/ˈɪntərvjuː/', phonetic_uk: '/ˈɪntəvjuː/', chinese: '面试；采访', example: 'She has a job interview on Monday.', level: 1, tag: '职场' },
+	{ word: 'salary', phonetic_us: '/ˈsæləri/', phonetic_uk: '/ˈsæləri/', chinese: '薪水', example: 'The company offers a good salary.', level: 1, tag: '职场' },
+	{ word: 'schedule', phonetic_us: '/ˈskedʒuːl/', phonetic_uk: '/ˈʃedjuːl/', chinese: '日程；安排', example: 'My schedule is full today.', level: 1, tag: '职场' },
+	{ word: 'document', phonetic_us: '/ˈdɑːkjumənt/', phonetic_uk: '/ˈdɒkjumənt/', chinese: '文件', example: 'Please sign this document.', level: 1, tag: '职场' },
+	{ word: 'message', phonetic_us: '/ˈmesɪdʒ/', phonetic_uk: '/ˈmesɪdʒ/', chinese: '消息；留言', example: 'I left you a message.', level: 1, tag: '交流' },
+	{ word: 'advice', phonetic_us: '/ədˈvaɪs/', phonetic_uk: '/ədˈvaɪs/', chinese: '建议', example: 'Thank you for your helpful advice.', level: 1, tag: '交流' },
+	{ word: 'choice', phonetic_us: '/tʃɔɪs/', phonetic_uk: '/tʃɔɪs/', chinese: '选择', example: 'You made the right choice.', level: 1, tag: '生活' },
+	{ word: 'habit', phonetic_us: '/ˈhæbɪt/', phonetic_uk: '/ˈhæbɪt/', chinese: '习惯', example: 'Reading every day is a good habit.', level: 1, tag: '生活' },
+	{ word: 'wellness', phonetic_us: '/ˈwelnəs/', phonetic_uk: '/ˈwelnəs/', chinese: '健康状态', example: 'Sleep is important for overall wellness.', level: 1, tag: '健康' },
+	{ word: 'exercise', phonetic_us: '/ˈeksərsaɪz/', phonetic_uk: '/ˈeksəsaɪz/', chinese: '锻炼；练习', example: 'Regular exercise keeps you healthy.', level: 1, tag: '健康' },
+	{ word: 'medicine', phonetic_us: '/ˈmedɪsn/', phonetic_uk: '/ˈmedɪsn/', chinese: '药；医学', example: 'Take this medicine after dinner.', level: 1, tag: '健康' },
+
+	// ========== 新增进阶词汇 ==========
+	{ word: 'adapt', phonetic_us: '/əˈdæpt/', phonetic_uk: '/əˈdæpt/', chinese: '适应；改编', example: 'We must adapt to the new environment.', level: 2, tag: '动词' },
+	{ word: 'advocate', phonetic_us: '/ˈædvəkeɪt/', phonetic_uk: '/ˈædvəkeɪt/', chinese: '提倡；拥护', example: 'Many experts advocate lifelong learning.', level: 2, tag: '动词' },
+	{ word: 'assess', phonetic_us: '/əˈses/', phonetic_uk: '/əˈses/', chinese: '评估', example: 'We need to assess the risks carefully.', level: 2, tag: '动词' },
+	{ word: 'coherent', phonetic_us: '/koʊˈhɪrənt/', phonetic_uk: '/kəʊˈhɪərənt/', chinese: '连贯的；有条理的', example: 'She presented a coherent argument.', level: 2, tag: '形容' },
+	{ word: 'comprehensive', phonetic_us: '/ˌkɑːmprɪˈhensɪv/', phonetic_uk: '/ˌkɒmprɪˈhensɪv/', chinese: '全面的；综合的', example: 'The report provides a comprehensive overview.', level: 2, tag: '形容' },
+	{ word: 'constraint', phonetic_us: '/kənˈstreɪnt/', phonetic_uk: '/kənˈstreɪnt/', chinese: '限制；约束', example: 'Time is our biggest constraint.', level: 2, tag: '名词' },
+	{ word: 'contemplate', phonetic_us: '/ˈkɑːntəmpleɪt/', phonetic_uk: '/ˈkɒntəmpleɪt/', chinese: '深思；考虑', example: 'She paused to contemplate the decision.', level: 2, tag: '动词' },
+	{ word: 'contradict', phonetic_us: '/ˌkɑːntrəˈdɪkt/', phonetic_uk: '/ˌkɒntrəˈdɪkt/', chinese: '反驳；与……矛盾', example: 'The evidence appears to contradict his claim.', level: 2, tag: '动词' },
+	{ word: 'crucial', phonetic_us: '/ˈkruːʃl/', phonetic_uk: '/ˈkruːʃl/', chinese: '至关重要的', example: 'Clear communication is crucial for teamwork.', level: 2, tag: '形容' },
+	{ word: 'derive', phonetic_us: '/dɪˈraɪv/', phonetic_uk: '/dɪˈraɪv/', chinese: '获得；源自', example: 'Many English words derive from Latin.', level: 2, tag: '动词' },
+	{ word: 'diminish', phonetic_us: '/dɪˈmɪnɪʃ/', phonetic_uk: '/dɪˈmɪnɪʃ/', chinese: '减少；削弱', example: 'The pain gradually began to diminish.', level: 2, tag: '动词' },
+	{ word: 'diverse', phonetic_us: '/daɪˈvɜːrs/', phonetic_uk: '/daɪˈvɜːs/', chinese: '多样的', example: 'The city has a diverse population.', level: 2, tag: '形容' },
+	{ word: 'enhance', phonetic_us: '/ɪnˈhæns/', phonetic_uk: '/ɪnˈhɑːns/', chinese: '提高；增强', example: 'Practice can enhance your speaking skills.', level: 2, tag: '动词' },
+	{ word: 'evaluate', phonetic_us: '/ɪˈvæljueɪt/', phonetic_uk: '/ɪˈvæljueɪt/', chinese: '评价；评估', example: 'Teachers evaluate student progress regularly.', level: 2, tag: '动词' },
+	{ word: 'explicit', phonetic_us: '/ɪkˈsplɪsɪt/', phonetic_uk: '/ɪkˈsplɪsɪt/', chinese: '明确的；直言的', example: 'The instructions must be explicit.', level: 2, tag: '形容' },
+	{ word: 'framework', phonetic_us: '/ˈfreɪmwɜːrk/', phonetic_uk: '/ˈfreɪmwɜːk/', chinese: '框架；体系', example: 'The policy provides a clear framework.', level: 2, tag: '名词' },
+	{ word: 'innovative', phonetic_us: '/ˈɪnəveɪtɪv/', phonetic_uk: '/ˈɪnəvətɪv/', chinese: '创新的', example: 'The team developed an innovative solution.', level: 2, tag: '形容' },
+	{ word: 'integrate', phonetic_us: '/ˈɪntɪɡreɪt/', phonetic_uk: '/ˈɪntɪɡreɪt/', chinese: '整合；融入', example: 'We should integrate technology into learning.', level: 2, tag: '动词' },
+	{ word: 'interpret', phonetic_us: '/ɪnˈtɜːrprət/', phonetic_uk: '/ɪnˈtɜːprɪt/', chinese: '解释；理解', example: 'People may interpret the message differently.', level: 2, tag: '动词' },
+	{ word: 'phenomenon', phonetic_us: '/fəˈnɑːmɪnən/', phonetic_uk: '/fəˈnɒmɪnən/', chinese: '现象', example: 'Climate change is a global phenomenon.', level: 2, tag: '名词' },
 ];
 
-// 导入单词到数据库
-function importWords() {
-	initDatabase();
+// 导入单词到 MySQL 数据库
+async function importWords() {
+	await initDatabase();
 
 	const insert = db.prepare(`
-		INSERT OR REPLACE INTO words (word, phonetic_us, phonetic_uk, chinese, example, level, tag, sort_order)
+		INSERT INTO words (word, phonetic_us, phonetic_uk, chinese, example, level, tag, sort_order)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			phonetic_us = VALUES(phonetic_us),
+			phonetic_uk = VALUES(phonetic_uk),
+			chinese = VALUES(chinese),
+			example = VALUES(example),
+			level = VALUES(level),
+			tag = VALUES(tag),
+			sort_order = VALUES(sort_order)
 	`);
 
-	const insertMany = db.transaction((words) => {
-		for (let i = 0; i < words.length; i++) {
-			const w = words[i];
-			insert.run(w.word, w.phonetic_us, w.phonetic_uk, w.chinese, w.example, w.level, w.tag, i + 1);
-		}
-	});
-
-	try {
-		insertMany(words);
-		console.log(`✅ 成功导入 ${words.length} 个单词`);
-
-		// 统计各等级数量
-		const stats = db.prepare('SELECT level, COUNT(*) as count FROM words GROUP BY level').all();
-		stats.forEach(s => {
-			const levelNames = { 0: '基础', 1: '日常', 2: '进阶' };
-			console.log(`   ${levelNames[s.level] || '未知'}: ${s.count} 词`);
-		});
-	} catch (err) {
-		console.error('❌ 导入失败:', err);
+	for (let i = 0; i < words.length; i++) {
+		const word = words[i];
+		await insert.run(
+			word.word,
+			word.phonetic_us,
+			word.phonetic_uk,
+			word.chinese,
+			word.example,
+			word.level,
+			word.tag,
+			i + 1
+		);
 	}
+
+	console.log(`成功导入 ${words.length} 个单词`);
+	const stats = await db.prepare('SELECT level, COUNT(*) as count FROM words GROUP BY level').all();
+	stats.forEach((item) => {
+		const levelNames = { 0: '基础', 1: '日常', 2: '进阶' };
+		console.log(`   ${levelNames[item.level] || '未知'}: ${item.count} 词`);
+	});
 }
 
-importWords();
+importWords()
+	.catch((error) => {
+		console.error('单词导入失败:', error);
+		process.exitCode = 1;
+	})
+	.finally(closeDatabase);

@@ -338,49 +338,32 @@ export default {
 			}
 		},
 		playMyRecording() {
-			if (this.playbackState === 'downloading') return;
-			const source = this.recordedPlaybackUrl || this.recordedFilePath;
-			if (!source) {
+			if (this.playbackState === 'downloading' || this.playbackState === 'playing') return;
+			if (this.recordedFilePath) {
+				this.doPlayRecording(this.recordedFilePath);
+				return;
+			}
+			if (!this.recordedPlaybackUrl) {
 				uni.showToast({ title: '没有录音，请先录音', icon: 'none' });
 				return;
 			}
-
-			if (!this.recordedPlaybackUrl) {
-				this.doPlayRecording(source);
-				return;
-			}
-
 			this.playbackState = 'downloading';
-			uni.showLoading({ title: '下载录音中...' });
+			uni.showLoading({ title: '加载录音中...' });
 			uni.downloadFile({
 				url: this.recordedPlaybackUrl,
 				success: (res) => {
 					uni.hideLoading();
 					if (res.statusCode === 200 && res.tempFilePath) {
-						const destPath = `${wx.env.USER_DATA_PATH}/my_recording_${Date.now()}.mp3`;
-						uni.getFileSystemManager().copyFile({
-							srcPath: res.tempFilePath,
-							destPath,
-							success: () => {
-								this.playbackState = 'ready';
-								this.doPlayRecording(destPath);
-							},
-							fail: (error) => {
-								this.playbackState = 'error';
-								console.error('保存录音失败:', error);
-								uni.showToast({ title: '保存录音失败', icon: 'none' });
-							}
-						});
+						this.doPlayRecording(res.tempFilePath);
 					} else {
-						this.playbackState = 'error';
-						uni.showToast({ title: `录音下载失败（${res.statusCode}）`, icon: 'none' });
+						this.playbackState = 'idle';
+						uni.showToast({ title: '录音加载失败', icon: 'none' });
 					}
 				},
-				fail: (error) => {
+				fail: () => {
 					uni.hideLoading();
-					this.playbackState = 'error';
-					console.error('下载录音失败:', error);
-					uni.showToast({ title: '录音下载失败', icon: 'none' });
+					this.playbackState = 'idle';
+					uni.showToast({ title: '录音加载失败', icon: 'none' });
 				}
 			});
 		},
@@ -388,8 +371,9 @@ export default {
 			if (this.myAudioContext) {
 				this.myAudioContext.stop();
 				this.myAudioContext.destroy();
+				this.myAudioContext = null;
 			}
-
+			this.playbackState = 'playing';
 			const audio = uni.createInnerAudioContext();
 			this.myAudioContext = audio;
 			audio.autoplay = false;
@@ -398,20 +382,15 @@ export default {
 			audio.startTime = 0;
 			audio.src = filePath;
 			audio.onCanplay(() => {
-				setTimeout(() => audio.play(), 100);
-			});
-			audio.onPlay(() => {
-				this.playbackState = 'playing';
-				uni.showToast({ title: '正在播放录音', icon: 'none', duration: 1000 });
+				audio.play();
 			});
 			audio.onEnded(() => {
 				this.playbackState = 'ready';
-				uni.showToast({ title: '录音播放完成', icon: 'none' });
 			});
 			audio.onError((error) => {
-				this.playbackState = 'error';
 				console.error('播放录音失败:', error);
-				uni.showToast({ title: '录音播放失败', icon: 'none' });
+				this.playbackState = 'ready';
+				uni.showToast({ title: '播放失败', icon: 'none' });
 			});
 		},
 		retryPractice() {

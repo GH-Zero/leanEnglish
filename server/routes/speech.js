@@ -268,7 +268,7 @@ router.post('/evaluate', (req, res) => {
         data: { status: 1, data: chunk.toString('base64'), data_type: 1, encoding: 'raw' }
       }));
       first = false;
-    }, 40);
+    }, 20);
   });
 
   ws.on('message', raw => {

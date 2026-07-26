@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取用户信息
-router.get('/profile', (req, res) => {
+router.get('/profile', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
-		const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+		const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
 
 		if (!user) {
 			return res.status(404).json({ code: 404, message: '用户不存在' });
@@ -20,12 +20,12 @@ router.get('/profile', (req, res) => {
 });
 
 // 更新用户信息
-router.put('/profile', (req, res) => {
+router.put('/profile', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { nickname, avatar, level, goal, study_duration, focus } = req.body;
 
-		db.prepare(`
+		await db.prepare(`
 			UPDATE users
 			SET nickname = COALESCE(?, nickname),
 				avatar = COALESCE(?, avatar),
@@ -37,7 +37,7 @@ router.put('/profile', (req, res) => {
 			WHERE id = ?
 		`).run(nickname, avatar, level, goal, study_duration, focus, userId);
 
-		const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+		const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
 		res.json({ code: 0, data: user, message: '更新成功' });
 	} catch (error) {
 		console.error('更新用户信息失败:', error);
@@ -46,10 +46,10 @@ router.put('/profile', (req, res) => {
 });
 
 // 获取学习统计
-router.get('/stats', (req, res) => {
+router.get('/stats', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
-		const stats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const stats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 
 		if (!stats) {
 			return res.json({ code: 0, data: null });
@@ -63,12 +63,12 @@ router.get('/stats', (req, res) => {
 });
 
 // 增加单词学习统计
-router.post('/stats/word', (req, res) => {
+router.post('/stats/word', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { count = 1, isCorrect = true } = req.body;
 
-		const stats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const stats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		if (!stats) {
 			return res.status(404).json({ code: 404, message: '用户统计不存在' });
 		}
@@ -78,7 +78,7 @@ router.post('/stats/word', (req, res) => {
 		const newPracticeCount = stats.total_practice_count + count;
 		const newAccuracy = newPracticeCount > 0 ? Math.round((newCorrectCount / newPracticeCount) * 100) : 0;
 
-		db.prepare(`
+		await db.prepare(`
 			UPDATE learning_stats
 			SET total_words_learned = ?,
 				correct_count = ?,
@@ -89,12 +89,12 @@ router.post('/stats/word', (req, res) => {
 		`).run(newTotalWords, newCorrectCount, newPracticeCount, newAccuracy, userId);
 
 		// 更新今日记录
-		updateDailyRecord(userId, { words_learned: count });
+		await updateDailyRecord(userId, { words_learned: count });
 
 		// 更新连续学习
-		updateStreak(userId);
+		await updateStreak(userId);
 
-		const updatedStats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const updatedStats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		res.json({ code: 0, data: updatedStats, message: '更新成功' });
 	} catch (error) {
 		console.error('更新单词统计失败:', error);
@@ -103,12 +103,12 @@ router.post('/stats/word', (req, res) => {
 });
 
 // 增加语法学习统计
-router.post('/stats/grammar', (req, res) => {
+router.post('/stats/grammar', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { count = 1, isCorrect = true } = req.body;
 
-		const stats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const stats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		if (!stats) {
 			return res.status(404).json({ code: 404, message: '用户统计不存在' });
 		}
@@ -118,7 +118,7 @@ router.post('/stats/grammar', (req, res) => {
 		const newPracticeCount = stats.total_practice_count + count;
 		const newAccuracy = newPracticeCount > 0 ? Math.round((newCorrectCount / newPracticeCount) * 100) : 0;
 
-		db.prepare(`
+		await db.prepare(`
 			UPDATE learning_stats
 			SET total_grammar_mastered = ?,
 				correct_count = ?,
@@ -128,10 +128,10 @@ router.post('/stats/grammar', (req, res) => {
 			WHERE user_id = ?
 		`).run(newTotalGrammar, newCorrectCount, newPracticeCount, newAccuracy, userId);
 
-		updateDailyRecord(userId, { grammar_practiced: count });
-		updateStreak(userId);
+		await updateDailyRecord(userId, { grammar_practiced: count });
+		await updateStreak(userId);
 
-		const updatedStats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const updatedStats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		res.json({ code: 0, data: updatedStats, message: '更新成功' });
 	} catch (error) {
 		console.error('更新语法统计失败:', error);
@@ -140,22 +140,22 @@ router.post('/stats/grammar', (req, res) => {
 });
 
 // 增加音标学习统计
-router.post('/stats/phonetic', (req, res) => {
+router.post('/stats/phonetic', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { count = 1 } = req.body;
 
-		db.prepare(`
+		await db.prepare(`
 			UPDATE learning_stats
 			SET total_phonetic_mastered = total_phonetic_mastered + ?,
 				updated_at = CURRENT_TIMESTAMP
 			WHERE user_id = ?
 		`).run(count, userId);
 
-		updateDailyRecord(userId, { phonetic_practiced: count });
-		updateStreak(userId);
+		await updateDailyRecord(userId, { phonetic_practiced: count });
+		await updateStreak(userId);
 
-		const updatedStats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const updatedStats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		res.json({ code: 0, data: updatedStats, message: '更新成功' });
 	} catch (error) {
 		console.error('更新音标统计失败:', error);
@@ -164,22 +164,22 @@ router.post('/stats/phonetic', (req, res) => {
 });
 
 // 增加口语练习统计
-router.post('/stats/speak', (req, res) => {
+router.post('/stats/speak', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { count = 1 } = req.body;
 
-		db.prepare(`
+		await db.prepare(`
 			UPDATE learning_stats
 			SET total_speak_practice = total_speak_practice + ?,
 				updated_at = CURRENT_TIMESTAMP
 			WHERE user_id = ?
 		`).run(count, userId);
 
-		updateDailyRecord(userId, { speak_practiced: count });
-		updateStreak(userId);
+		await updateDailyRecord(userId, { speak_practiced: count });
+		await updateStreak(userId);
 
-		const updatedStats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const updatedStats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		res.json({ code: 0, data: updatedStats, message: '更新成功' });
 	} catch (error) {
 		console.error('更新口语统计失败:', error);
@@ -188,21 +188,21 @@ router.post('/stats/speak', (req, res) => {
 });
 
 // 更新学习时长
-router.post('/stats/study-time', (req, res) => {
+router.post('/stats/study-time', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { minutes = 1 } = req.body;
 
-		db.prepare(`
+		await db.prepare(`
 			UPDATE learning_stats
 			SET total_study_minutes = total_study_minutes + ?,
 				updated_at = CURRENT_TIMESTAMP
 			WHERE user_id = ?
 		`).run(minutes, userId);
 
-		updateDailyRecord(userId, { study_minutes: minutes });
+		await updateDailyRecord(userId, { study_minutes: minutes });
 
-		const updatedStats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const updatedStats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		res.json({ code: 0, data: updatedStats, message: '更新成功' });
 	} catch (error) {
 		console.error('更新学习时长失败:', error);
@@ -211,22 +211,23 @@ router.post('/stats/study-time', (req, res) => {
 });
 
 // 获取连续学习数据
-router.get('/streak', (req, res) => {
+router.get('/streak', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
-		const streak = db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
+		const streak = await db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
 
 		if (!streak) {
 			return res.json({ code: 0, data: null });
 		}
 
 		// 获取学习日期列表
-		const studyDates = db.prepare(`
+		const studyDateRows = await db.prepare(`
 			SELECT DISTINCT date FROM daily_records
 			WHERE user_id = ? AND (words_learned > 0 OR grammar_practiced > 0 OR phonetic_practiced > 0 OR speak_practiced > 0)
 			ORDER BY date DESC
 			LIMIT 30
-		`).all(userId).map(r => r.date);
+		`).all(userId);
+		const studyDates = studyDateRows.map(r => r.date);
 
 		res.json({ code: 0, data: { ...streak, study_dates: studyDates } });
 	} catch (error) {
@@ -236,13 +237,13 @@ router.get('/streak', (req, res) => {
 });
 
 // 更新连续学习天数
-function updateStreak(userId) {
+async function updateStreak(userId) {
 	const today = new Date().toISOString().split('T')[0];
 	const yesterday = new Date();
 	yesterday.setDate(yesterday.getDate() - 1);
 	const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-	const streak = db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
+	const streak = await db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
 	if (!streak) return;
 
 	if (streak.last_study_date === today) {
@@ -258,7 +259,7 @@ function updateStreak(userId) {
 
 	const maxStreak = Math.max(newStreak, streak.max_streak);
 
-	db.prepare(`
+	await db.prepare(`
 		UPDATE streak_data
 		SET current_streak = ?,
 			max_streak = ?,
@@ -268,7 +269,7 @@ function updateStreak(userId) {
 	`).run(newStreak, maxStreak, today, userId);
 
 	// 同步更新学习统计
-	db.prepare(`
+	await db.prepare(`
 		UPDATE learning_stats
 		SET streak_days = ?,
 			max_streak_days = ?,
@@ -279,9 +280,9 @@ function updateStreak(userId) {
 }
 
 // 更新每日记录
-function updateDailyRecord(userId, data) {
+async function updateDailyRecord(userId, data) {
 	const today = new Date().toISOString().split('T')[0];
-	const existing = db.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(userId, today);
+	const existing = await db.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(userId, today);
 
 	if (existing) {
 		const updates = [];
@@ -314,10 +315,10 @@ function updateDailyRecord(userId, data) {
 
 		if (updates.length > 0) {
 			values.push(userId, today);
-			db.prepare(`UPDATE daily_records SET ${updates.join(', ')} WHERE user_id = ? AND date = ?`).run(...values);
+			await db.prepare(`UPDATE daily_records SET ${updates.join(', ')} WHERE user_id = ? AND date = ?`).run(...values);
 		}
 	} else {
-		db.prepare(`
+		await db.prepare(`
 			INSERT INTO daily_records (user_id, date, words_learned, words_reviewed, grammar_practiced, phonetic_practiced, speak_practiced, study_minutes)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		`).run(

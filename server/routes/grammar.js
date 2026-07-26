@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取用户语法进度
-router.get('/progress', (req, res) => {
+router.get('/progress', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
-		const progress = db.prepare('SELECT * FROM grammar_progress WHERE user_id = ?').all(userId);
+		const progress = await db.prepare('SELECT * FROM grammar_progress WHERE user_id = ?').all(userId);
 
 		const progressObj = {};
 		progress.forEach(item => {
@@ -25,7 +25,7 @@ router.get('/progress', (req, res) => {
 });
 
 // 更新语法进度
-router.post('/progress', (req, res) => {
+router.post('/progress', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { grammar_id, status, score } = req.body;
@@ -35,10 +35,10 @@ router.post('/progress', (req, res) => {
 		}
 
 		const today = new Date().toISOString().split('T')[0];
-		const existing = db.prepare('SELECT * FROM grammar_progress WHERE user_id = ? AND grammar_id = ?').get(userId, grammar_id);
+		const existing = await db.prepare('SELECT * FROM grammar_progress WHERE user_id = ? AND grammar_id = ?').get(userId, grammar_id);
 
 		if (existing) {
-			db.prepare(`
+			await db.prepare(`
 				UPDATE grammar_progress
 				SET status = COALESCE(?, status),
 					score = COALESCE(?, score),
@@ -47,7 +47,7 @@ router.post('/progress', (req, res) => {
 				WHERE user_id = ? AND grammar_id = ?
 			`).run(status, score, today, userId, grammar_id);
 		} else {
-			db.prepare(`
+			await db.prepare(`
 				INSERT INTO grammar_progress (user_id, grammar_id, status, score, last_practice_date)
 				VALUES (?, ?, ?, ?, ?)
 			`).run(userId, grammar_id, status || '已学习', score || 0, today);
@@ -55,7 +55,7 @@ router.post('/progress', (req, res) => {
 
 		// 如果完成学习，更新统计
 		if (status === '已学习') {
-			db.prepare(`
+			await db.prepare(`
 				UPDATE learning_stats
 				SET total_grammar_mastered = total_grammar_mastered + 1,
 					updated_at = CURRENT_TIMESTAMP

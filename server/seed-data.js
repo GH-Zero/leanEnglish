@@ -1,7 +1,8 @@
-const { db, initDatabase } = require('./database-sqlite');
+const { db } = require('./db');
+const { initDatabase, closeDatabase } = require('./database');
 
-function seedData() {
-	initDatabase();
+async function seedData() {
+	await initDatabase();
 
 	// ========== 对话场景 ==========
 	const scenes = [
@@ -11,11 +12,11 @@ function seedData() {
 		{ icon: '💼', name: '职场寒暄', description: '职场交流的真实对话', initial_prompt: 'Good morning! How was your weekend?' }
 	];
 
-	const insertScene = db.prepare('INSERT OR IGNORE INTO dialogue_scenes (icon, name, description, initial_prompt, sort_order) VALUES (?, ?, ?, ?, ?)');
-	const insertScenes = db.transaction((items) => {
-		items.forEach((s, i) => insertScene.run(s.icon, s.name, s.description, s.initial_prompt, i + 1));
-	});
-	insertScenes(scenes);
+	const insertScene = db.prepare('INSERT IGNORE INTO dialogue_scenes (icon, name, description, initial_prompt, sort_order) VALUES (?, ?, ?, ?, ?)');
+	for (let i = 0; i < scenes.length; i++) {
+		const s = scenes[i];
+		await insertScene.run(s.icon, s.name, s.description, s.initial_prompt, i + 1);
+	}
 	console.log(`✅ 导入 ${scenes.length} 个对话场景`);
 
 	// ========== 影子跟读句子 ==========
@@ -42,11 +43,11 @@ function seedData() {
 		{ text: 'I believe hard work always leads to success.', chinese: '我相信努力工作总会带来成功。', level: 2, tag: '观点' }
 	];
 
-	const insertSentence = db.prepare('INSERT OR IGNORE INTO shadow_sentences (text, chinese, level, tag, sort_order) VALUES (?, ?, ?, ?, ?)');
-	const insertSentences = db.transaction((items) => {
-		items.forEach((s, i) => insertSentence.run(s.text, s.chinese, s.level, s.tag, i + 1));
-	});
-	insertSentences(sentences);
+	const insertSentence = db.prepare('INSERT IGNORE INTO shadow_sentences (text, chinese, level, tag, sort_order) VALUES (?, ?, ?, ?, ?)');
+	for (let i = 0; i < sentences.length; i++) {
+		const s = sentences[i];
+		await insertSentence.run(s.text, s.chinese, s.level, s.tag, i + 1);
+	}
 	console.log(`✅ 导入 ${sentences.length} 个跟读句子`);
 
 	// ========== 语法练习题 ==========
@@ -73,11 +74,11 @@ function seedData() {
 		{ grammar_id: 4, sentence: 'It ___ rain tomorrow.', answer: 'will', options: '["will","is","does","did"]', explanation: 'tomorrow 表示将来时，用 will', level: 1 }
 	];
 
-	const insertQuestion = db.prepare('INSERT OR IGNORE INTO grammar_questions (grammar_id, sentence, answer, options, explanation, level, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
-	const insertQuestions = db.transaction((items) => {
-		items.forEach((q, i) => insertQuestion.run(q.grammar_id, q.sentence, q.answer, q.options, q.explanation, q.level, i + 1));
-	});
-	insertQuestions(grammarQuestions);
+	const insertQuestion = db.prepare('INSERT IGNORE INTO grammar_questions (grammar_id, sentence, answer, options, explanation, level, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
+	for (let i = 0; i < grammarQuestions.length; i++) {
+		const q = grammarQuestions[i];
+		await insertQuestion.run(q.grammar_id, q.sentence, q.answer, q.options, q.explanation, q.level, i + 1);
+	}
 	console.log(`✅ 导入 ${grammarQuestions.length} 道语法练习题`);
 
 	// ========== 音标 ==========
@@ -132,11 +133,11 @@ function seedData() {
 		{ symbol: '/ʊə/', example: 'tour', chinese: '乌额', category: 'combination' }
 	];
 
-	const insertPhonetic = db.prepare('INSERT OR IGNORE INTO phonetics (symbol, example, chinese, category, sort_order) VALUES (?, ?, ?, ?, ?)');
-	const insertPhonetics = db.transaction((items) => {
-		items.forEach((p, i) => insertPhonetic.run(p.symbol, p.example, p.chinese, p.category, i + 1));
-	});
-	insertPhonetics(phonetics);
+	const insertPhonetic = db.prepare('INSERT IGNORE INTO phonetics (symbol, example, chinese, category, sort_order) VALUES (?, ?, ?, ?, ?)');
+	for (let i = 0; i < phonetics.length; i++) {
+		const p = phonetics[i];
+		await insertPhonetic.run(p.symbol, p.example, p.chinese, p.category, i + 1);
+	}
 	console.log(`✅ 导入 ${phonetics.length} 个音标`);
 
 	// ========== 语法知识点 ==========
@@ -220,19 +221,19 @@ function seedData() {
 		}
 	];
 
-	const insertGrammarPoint = db.prepare('INSERT OR IGNORE INTO grammar_points (title, description, stage, explanation, examples, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
-	const insertGrammarPoints = db.transaction((items) => {
-		items.forEach((g, i) => insertGrammarPoint.run(g.title, g.description, g.stage, g.explanation, g.examples, i + 1));
-	});
-	insertGrammarPoints(grammarPoints);
+	const insertGrammarPoint = db.prepare('INSERT IGNORE INTO grammar_points (title, description, stage, explanation, examples, sort_order) VALUES (?, ?, ?, ?, ?, ?)');
+	for (let i = 0; i < grammarPoints.length; i++) {
+		const g = grammarPoints[i];
+		await insertGrammarPoint.run(g.title, g.description, g.stage, g.explanation, g.examples, i + 1);
+	}
 	console.log(`✅ 导入 ${grammarPoints.length} 个语法知识点`);
 
 	// 统计
-	const sceneCount = db.prepare('SELECT COUNT(*) as c FROM dialogue_scenes').get().c;
-	const sentenceCount = db.prepare('SELECT COUNT(*) as c FROM shadow_sentences').get().c;
-	const questionCount = db.prepare('SELECT COUNT(*) as c FROM grammar_questions').get().c;
-	const phoneticCount = db.prepare('SELECT COUNT(*) as c FROM phonetics').get().c;
-	const grammarPointCount = db.prepare('SELECT COUNT(*) as c FROM grammar_points').get().c;
+	const sceneCount = (await db.prepare('SELECT COUNT(*) as c FROM dialogue_scenes').get()).c;
+	const sentenceCount = (await db.prepare('SELECT COUNT(*) as c FROM shadow_sentences').get()).c;
+	const questionCount = (await db.prepare('SELECT COUNT(*) as c FROM grammar_questions').get()).c;
+	const phoneticCount = (await db.prepare('SELECT COUNT(*) as c FROM phonetics').get()).c;
+	const grammarPointCount = (await db.prepare('SELECT COUNT(*) as c FROM grammar_points').get()).c;
 	console.log(`\n📊 数据库统计：`);
 	console.log(`   对话场景: ${sceneCount} 个`);
 	console.log(`   跟读句子: ${sentenceCount} 句`);
@@ -241,4 +242,9 @@ function seedData() {
 	console.log(`   语法知识点: ${grammarPointCount} 个`);
 }
 
-seedData();
+seedData()
+	.catch((error) => {
+		console.error('种子数据导入失败:', error);
+		process.exitCode = 1;
+	})
+	.finally(closeDatabase);

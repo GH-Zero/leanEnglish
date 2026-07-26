@@ -1,17 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取学习设置
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
-		let settings = db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
+		let settings = await db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
 
 		if (!settings) {
 			// 创建默认设置
-			db.prepare('INSERT INTO learning_settings (user_id) VALUES (?)').run(userId);
-			settings = db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
+			await db.prepare('INSERT INTO learning_settings (user_id) VALUES (?)').run(userId);
+			settings = await db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
 		}
 
 		res.json({ code: 0, data: settings });
@@ -22,7 +22,7 @@ router.get('/', (req, res) => {
 });
 
 // 更新学习设置
-router.put('/', (req, res) => {
+router.put('/', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const {
@@ -45,10 +45,10 @@ router.put('/', (req, res) => {
 		} = req.body;
 
 		// 检查设置是否存在
-		const existing = db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
+		const existing = await db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
 
 		if (existing) {
-			db.prepare(`
+			await db.prepare(`
 				UPDATE learning_settings
 				SET daily_new_words = COALESCE(?, daily_new_words),
 					daily_review_words = COALESCE(?, daily_review_words),
@@ -76,7 +76,7 @@ router.put('/', (req, res) => {
 				dnd_start, dnd_end, userId
 			);
 		} else {
-			db.prepare(`
+			await db.prepare(`
 				INSERT INTO learning_settings (user_id, daily_new_words, daily_review_words, difficulty, accent, auto_play, dark_mode, font_size, daily_reminder, reminder_time, reminder_content, word_reminder, progress_reminder, achievement_reminder, do_not_disturb, dnd_start, dnd_end)
 				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			`).run(
@@ -92,7 +92,7 @@ router.put('/', (req, res) => {
 			);
 		}
 
-		const updatedSettings = db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
+		const updatedSettings = await db.prepare('SELECT * FROM learning_settings WHERE user_id = ?').get(userId);
 		res.json({ code: 0, data: updatedSettings, message: '更新成功' });
 	} catch (error) {
 		console.error('更新学习设置失败:', error);

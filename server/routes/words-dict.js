@@ -1,185 +1,272 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
+
+const DAILY_CATEGORIES = ['名词', '动词', '形容词', '副词', '功能词', '其他'];
+const TOTAL_WORDS = 36000;
+const CATEGORY_COUNTS = {
+  名词: 19996,
+  动词: 3566,
+  形容词: 7780,
+  副词: 1737,
+  功能词: 212,
+  其他: 2709
+};
+const LEVEL_COUNTS = { 0: 5811, 1: 12076, 2: 18113 };
+const CATEGORY_DESCRIPTIONS = {
+  名词: '人物、事物、地点与抽象概念',
+  动词: '动作、行为与状态变化',
+  形容词: '描述性质、状态与特征',
+  副词: '修饰动作、程度、时间与方式',
+  功能词: '介词、连词、代词与数词',
+  其他: '常用短语、缩写与补充词汇'
+};
+
+function chinaDate(dateValue) {
+  if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return dateValue;
+  }
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+}
+
+function categoryForDate(date) {
+  const [year, month, day] = date.split('-').map(Number);
+  const dayNumber = Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+  const index = ((dayNumber % DAILY_CATEGORIES.length) + DAILY_CATEGORIES.length) % DAILY_CATEGORIES.length;
+  return {
+    category: DAILY_CATEGORIES[index],
+    nextCategory: DAILY_CATEGORIES[(index + 1) % DAILY_CATEGORIES.length],
+    index
+  };
+}
+
+function safeLimit(value, fallback = 20) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(parsed, 1), 100);
+}
 
 // 获取单词列表（分页 + 筛选）
-router.get('/list', (req, res) => {
-	try {
-		const { level, page = 1, pageSize = 20, tag } = req.query;
-		const offset = (page - 1) * pageSize;
+router.get('/list', async (req, res) => {
+  try {
+    const { level, page = 1, pageSize = 20, tag, category } = req.query;
+    const safePage = Math.max(Number(page) || 1, 1);
+    const safePageSize = safeLimit(pageSize);
+    const offset = (safePage - 1) * safePageSize;
+    let sql = 'SELECT * FROM words WHERE 1=1';
+    const params = [];
 
-		let sql = 'SELECT * FROM words WHERE 1=1';
-		const params = [];
+    if (level !== undefined) {
+      sql += ' AND level = ?';
+      params.push(Number(level));
+    }
+    if (tag) {
+      sql += ' AND tag = ?';
+      params.push(tag);
+    }
+    if (category) {
+      sql += ' AND category = ?';
+      params.push(category);
+    }
 
-		if (level !== undefined) {
-			sql += ' AND level = ?';
-			params.push(Number(level));
-		}
-		if (tag) {
-			sql += ' AND tag = ?';
-			params.push(tag);
-		}
+    const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) AS total');
+    const { total } = await db.prepare(countSql).get(...params);
+    sql += ' ORDER BY sort_order ASC LIMIT ? OFFSET ?';
+    const words = await db.prepare(sql).all(...params, safePageSize, offset);
 
-		// 总数
-		const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
-		const { total } = db.prepare(countSql).get(...params);
-
-		// 分页数据
-		sql += ' ORDER BY sort_order ASC LIMIT ? OFFSET ?';
-		params.push(Number(pageSize), Number(offset));
-		const words = db.prepare(sql).all(...params);
-
-		res.json({
-			code: 0,
-			data: {
-				list: words,
-				total,
-				page: Number(page),
-				pageSize: Number(pageSize),
-				pages: Math.ceil(total / pageSize)
-			}
-		});
-	} catch (err) {
-		console.error('获取单词列表失败:', err);
-		res.json({ code: -1, message: '获取失败' });
-	}
+    res.json({
+      code: 0,
+      data: {
+        list: words,
+        total,
+        page: safePage,
+        pageSize: safePageSize,
+        pages: Math.ceil(total / safePageSize)
+      }
+    });
+  } catch (error) {
+    console.error('获取单词列表失败:', error);
+    res.status(500).json({ code: 500, message: '获取失败' });
+  }
 });
 
 // 随机获取单词
-router.get('/random', (req, res) => {
-	try {
-		const { level, count = 20 } = req.query;
+router.get('/random', async (req, res) => {
+  try {
+    const { level, category } = req.query;
+    const count = safeLimit(req.query.count);
+    let sql = 'SELECT * FROM words WHERE 1=1';
+    const params = [];
+    if (level !== undefined) {
+      sql += ' AND level = ?';
+      params.push(Number(level));
+    }
+    if (category) {
+      sql += ' AND category = ?';
+      params.push(category);
+    }
+    sql += ' ORDER BY RAND() LIMIT ?';
+    const words = await db.prepare(sql).all(...params, count);
+    res.json({ code: 0, data: words });
+  } catch (error) {
+    console.error('随机获取单词失败:', error);
+    res.status(500).json({ code: 500, message: '获取失败' });
+  }
+});
 
-		let sql = 'SELECT * FROM words';
-		const params = [];
+// 每日学习：每天固定轮换一个单词类型
+router.get('/daily', async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.query.userId, 10) || 1;
+    const limit = safeLimit(req.query.limit, 10);
+    const date = chinaDate(req.query.date);
+    const { category, nextCategory } = categoryForDate(date);
 
-		if (level !== undefined) {
-			sql += ' WHERE level = ?';
-			params.push(Number(level));
-		}
+    const reviewWords = await db.prepare(`
+      SELECT w.* FROM words w
+      INNER JOIN word_status ws ON ws.word = w.word
+      WHERE ws.user_id = ?
+        AND ws.mastered = 0
+        AND ws.next_review_date <= ?
+        AND w.category = ?
+      ORDER BY ws.next_review_date ASC, w.sort_order ASC
+      LIMIT ?
+    `).all(userId, date, category, limit);
 
-		sql += ' ORDER BY RANDOM() LIMIT ?';
-		params.push(Number(count));
+    const remaining = Math.max(limit - reviewWords.length, 0);
+    let newWords = [];
+    if (remaining > 0) {
+      newWords = await db.prepare(`
+        SELECT w.* FROM words w
+        WHERE w.category = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM word_status ws
+            WHERE ws.user_id = ? AND ws.word = w.word
+          )
+        ORDER BY w.sort_order ASC
+        LIMIT ?
+      `).all(category, userId, remaining);
+    }
 
-		const words = db.prepare(sql).all(...params);
+    const masteredStats = await db.prepare(`
+      SELECT COUNT(*) AS count FROM word_status ws
+      INNER JOIN words w ON w.word = ws.word
+      WHERE ws.user_id = ? AND ws.mastered = 1 AND w.category = ?
+    `).get(userId, category);
 
-		res.json({ code: 0, data: words });
-	} catch (err) {
-		console.error('随机获取单词失败:', err);
-		res.json({ code: -1, message: '获取失败' });
-	}
+    res.json({
+      code: 0,
+      data: {
+        date,
+        category,
+        categoryDescription: CATEGORY_DESCRIPTIONS[category],
+        nextCategory,
+        words: [...reviewWords, ...newWords],
+        reviewCount: reviewWords.length,
+        newCount: newWords.length,
+        masteredCount: masteredStats.count,
+        categoryCount: CATEGORY_COUNTS[category],
+        totalInDb: TOTAL_WORDS
+      }
+    });
+  } catch (error) {
+    console.error('获取每日分类单词失败:', error);
+    res.status(500).json({ code: 500, message: '获取每日学习计划失败' });
+  }
+});
+
+// 获取各等级和类型数量统计
+router.get('/count', (req, res) => {
+  const stats = Object.entries(LEVEL_COUNTS).map(([level, count]) => ({ level: Number(level), count }));
+  const categories = DAILY_CATEGORIES.map((category) => ({ category, count: CATEGORY_COUNTS[category] }));
+  res.json({ code: 0, data: { stats, categories, total: TOTAL_WORDS } });
 });
 
 // 获取单词详情
-router.get('/detail/:id', (req, res) => {
-	try {
-		const word = db.prepare('SELECT * FROM words WHERE id = ?').get(req.params.id);
-		if (!word) {
-			return res.json({ code: -1, message: '单词不存在' });
-		}
-		res.json({ code: 0, data: word });
-	} catch (err) {
-		console.error('获取单词详情失败:', err);
-		res.json({ code: -1, message: '获取失败' });
-	}
+router.get('/detail/:id', async (req, res) => {
+  try {
+    const word = await db.prepare('SELECT * FROM words WHERE id = ?').get(req.params.id);
+    if (!word) return res.status(404).json({ code: 404, message: '单词不存在' });
+    res.json({ code: 0, data: word });
+  } catch (error) {
+    console.error('获取单词详情失败:', error);
+    res.status(500).json({ code: 500, message: '获取失败' });
+  }
 });
 
-// 获取各等级单词数量统计
-router.get('/count', (req, res) => {
-	try {
-		const stats = db.prepare('SELECT level, COUNT(*) as count FROM words GROUP BY level').all();
-		const total = db.prepare('SELECT COUNT(*) as count FROM words').get().count;
-		res.json({ code: 0, data: { stats, total } });
-	} catch (err) {
-		console.error('获取统计失败:', err);
-		res.json({ code: -1, message: '获取失败' });
-	}
+// 兼容原有按等级获取未学习单词接口
+router.get('/unlearned', async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.query.userId, 10) || 1;
+    const level = Number.parseInt(req.query.level, 10);
+    const limit = safeLimit(req.query.limit);
+    const levelFilter = Number.isNaN(level) ? '' : 'AND w.level = ?';
+    const levelParams = Number.isNaN(level) ? [] : [level];
+    const date = chinaDate();
+
+    const reviewWords = await db.prepare(`
+      SELECT w.* FROM words w
+      INNER JOIN word_status ws ON w.word = ws.word
+      WHERE ws.user_id = ? AND ws.mastered = 0
+        AND ws.next_review_date <= ? ${levelFilter}
+      ORDER BY ws.next_review_date ASC
+      LIMIT ?
+    `).all(userId, date, ...levelParams, limit);
+
+    const remaining = Math.max(limit - reviewWords.length, 0);
+    let newWords = [];
+    if (remaining > 0) {
+      newWords = await db.prepare(`
+        SELECT w.* FROM words w
+        WHERE NOT EXISTS (
+          SELECT 1 FROM word_status ws WHERE ws.user_id = ? AND ws.word = w.word
+        ) ${levelFilter}
+        ORDER BY w.sort_order ASC
+        LIMIT ?
+      `).all(userId, ...levelParams, remaining);
+    }
+
+    const mastered = await db.prepare('SELECT COUNT(*) AS count FROM word_status WHERE user_id = ? AND mastered = 1').get(userId);
+    const totalInDb = Number.isNaN(level) ? TOTAL_WORDS : (LEVEL_COUNTS[level] || 0);
+
+    res.json({
+      code: 0,
+      data: {
+        words: [...reviewWords, ...newWords],
+        reviewCount: reviewWords.length,
+        newCount: newWords.length,
+        masteredCount: mastered.count,
+        totalInDb
+      }
+    });
+  } catch (error) {
+    console.error('获取未学习单词失败:', error);
+    res.status(500).json({ code: 500, message: '获取失败' });
+  }
 });
 
-// 获取未学习的单词（跳过已掌握的）
-router.get('/unlearned', (req, res) => {
-	try {
-		const userId = parseInt(req.query.userId) || 1;
-		const level = parseInt(req.query.level);
-		const limit = parseInt(req.query.limit) || 20;
-
-		// 获取用户已掌握的单词
-		const masteredWords = db.prepare(
-			'SELECT word FROM word_status WHERE user_id = ? AND mastered = 1'
-		).all(userId).map(r => r.word);
-
-		// 获取用户已学过的单词（包含未掌握的，需要复习的）
-		const learnedWords = db.prepare(
-			'SELECT word FROM word_status WHERE user_id = ?'
-		).all(userId).map(r => r.word);
-
-		let sql = 'SELECT * FROM words WHERE word NOT IN (SELECT word FROM word_status WHERE user_id = ? AND mastered = 1)';
-		const params = [userId];
-
-		if (!isNaN(level)) {
-			sql += ' AND level = ?';
-			params.push(level);
-		}
-
-		// 优先返回需要复习的单词
-		const today = new Date().toISOString().split('T')[0];
-		const reviewSql = `
-			SELECT w.* FROM words w
-			INNER JOIN word_status ws ON w.word = ws.word
-			WHERE ws.user_id = ? AND ws.mastered = 0
-			AND ws.next_review_date <= ?
-			${!isNaN(level) ? 'AND w.level = ?' : ''}
-			ORDER BY ws.next_review_date ASC
-			LIMIT ?
-		`;
-		const reviewParams = [userId, today, ...(isNaN(level) ? [] : [level]), limit];
-		const reviewWords = db.prepare(reviewSql).all(...reviewParams);
-
-		// 新单词（从未学过的）
-		sql += ' AND word NOT IN (SELECT word FROM word_status WHERE user_id = ?)';
-		params.push(userId);
-		if (!isNaN(level)) {
-			// level already added above, need to not duplicate
-		} else {
-			// no level filter
-		}
-		sql += ' ORDER BY sort_order ASC LIMIT ?';
-		params.push(limit);
-
-		const newWords = db.prepare(sql).all(...params);
-
-		// 合并：复习单词优先，不足则补新单词
-		const allWords = [...reviewWords, ...newWords].slice(0, limit);
-
-		const totalInDb = db.prepare(
-			!isNaN(level) ? 'SELECT COUNT(*) as c FROM words WHERE level = ?' : 'SELECT COUNT(*) as c FROM words'
-		).get(...(isNaN(level) ? [] : [level])).c;
-
-		res.json({
-			code: 0,
-			data: {
-				words: allWords,
-				reviewCount: reviewWords.length,
-				newCount: newWords.length,
-				masteredCount: masteredWords.length,
-				totalInDb
-			}
-		});
-	} catch (err) {
-		console.error('获取未学习单词失败:', err);
-		res.json({ code: -1, message: '获取失败' });
-	}
+router.get('/categories', (req, res) => {
+  const categories = DAILY_CATEGORIES.map((category) => ({
+    category,
+    count: CATEGORY_COUNTS[category],
+    description: CATEGORY_DESCRIPTIONS[category]
+  }));
+  res.json({ code: 0, data: categories });
 });
 
-// 获取所有标签
-router.get('/tags', (req, res) => {
-	try {
-		const tags = db.prepare('SELECT DISTINCT tag FROM words ORDER BY tag').all();
-		res.json({ code: 0, data: tags.map(t => t.tag) });
-	} catch (err) {
-		console.error('获取标签失败:', err);
-		res.json({ code: -1, message: '获取失败' });
-	}
+router.get('/tags', async (req, res) => {
+  try {
+    const tags = await db.prepare('SELECT DISTINCT tag FROM words ORDER BY tag').all();
+    res.json({ code: 0, data: tags.map((item) => item.tag) });
+  } catch (error) {
+    console.error('获取标签失败:', error);
+    res.status(500).json({ code: 500, message: '获取失败' });
+  }
 });
 
 module.exports = router;

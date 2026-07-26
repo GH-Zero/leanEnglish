@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取语法练习题列表
-router.get('/list', (req, res) => {
+router.get('/list', async (req, res) => {
 	try {
 		const { level, grammar_id, count = 20 } = req.query;
 		let sql = 'SELECT * FROM grammar_questions WHERE 1=1';
@@ -21,7 +21,7 @@ router.get('/list', (req, res) => {
 		sql += ' ORDER BY sort_order ASC LIMIT ?';
 		params.push(Number(count));
 
-		const questions = db.prepare(sql).all(...params);
+		const questions = await db.prepare(sql).all(...params);
 		// 解析 options JSON 字符串
 		questions.forEach(q => {
 			try { q.options = JSON.parse(q.options); } catch (e) { q.options = []; }
@@ -34,7 +34,7 @@ router.get('/list', (req, res) => {
 });
 
 // 随机获取语法练习题
-router.get('/random', (req, res) => {
+router.get('/random', async (req, res) => {
 	try {
 		const { level, count = 10 } = req.query;
 		let sql = 'SELECT * FROM grammar_questions WHERE 1=1';
@@ -45,10 +45,10 @@ router.get('/random', (req, res) => {
 			params.push(Number(level));
 		}
 
-		sql += ' ORDER BY RANDOM() LIMIT ?';
+		sql += ' ORDER BY RAND() LIMIT ?';
 		params.push(Number(count));
 
-		const questions = db.prepare(sql).all(...params);
+		const questions = await db.prepare(sql).all(...params);
 		questions.forEach(q => {
 			try { q.options = JSON.parse(q.options); } catch (e) { q.options = []; }
 		});

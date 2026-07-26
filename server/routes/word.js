@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取用户单词状态
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
-		const wordStatus = db.prepare('SELECT * FROM word_status WHERE user_id = ?').all(userId);
+		const wordStatus = await db.prepare('SELECT * FROM word_status WHERE user_id = ?').all(userId);
 
 		// 转换为对象格式
 		const statusObj = {};
@@ -29,7 +29,7 @@ router.get('/status', (req, res) => {
 });
 
 // 更新单词状态（认识）
-router.post('/status/known', (req, res) => {
+router.post('/status/known', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { word } = req.body;
@@ -39,7 +39,7 @@ router.post('/status/known', (req, res) => {
 		}
 
 		const today = new Date().toISOString().split('T')[0];
-		const existing = db.prepare('SELECT * FROM word_status WHERE user_id = ? AND word = ?').get(userId, word);
+		const existing = await db.prepare('SELECT * FROM word_status WHERE user_id = ? AND word = ?').get(userId, word);
 
 		if (existing) {
 			const newRepetition = existing.repetition + 1;
@@ -57,10 +57,10 @@ router.post('/status/known', (req, res) => {
 			const nextDate = new Date();
 			nextDate.setDate(nextDate.getDate() + newInterval);
 
-			db.prepare(`
+			await db.prepare(`
 				UPDATE word_status
 				SET repetition = ?,
-					interval = ?,
+					\`interval\` = ?,
 					mastered = ?,
 					next_review_date = ?,
 					last_review_date = ?,
@@ -71,20 +71,20 @@ router.post('/status/known', (req, res) => {
 			const nextDate = new Date();
 			nextDate.setDate(nextDate.getDate() + 1);
 
-			db.prepare(`
-				INSERT INTO word_status (user_id, word, repetition, interval, next_review_date, last_review_date, mastered)
+			await db.prepare(`
+				INSERT INTO word_status (user_id, word, repetition, \`interval\`, next_review_date, last_review_date, mastered)
 				VALUES (?, ?, 1, 1, ?, ?, 0)
 			`).run(userId, word, nextDate.toISOString().split('T')[0], today);
 		}
 
 		// 更新学习统计
-		const stats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const stats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		if (stats) {
 			const newPracticeCount = stats.total_practice_count + 1;
 			const newCorrectCount = stats.correct_count + 1;
 			const newAccuracy = newPracticeCount > 0 ? Math.round((newCorrectCount / newPracticeCount) * 100) : 0;
 
-			db.prepare(`
+			await db.prepare(`
 				UPDATE learning_stats
 				SET total_words_learned = total_words_learned + 1,
 					correct_count = ?,
@@ -103,7 +103,7 @@ router.post('/status/known', (req, res) => {
 });
 
 // 更新单词状态（不认识）
-router.post('/status/unknown', (req, res) => {
+router.post('/status/unknown', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { word } = req.body;
@@ -113,16 +113,16 @@ router.post('/status/unknown', (req, res) => {
 		}
 
 		const today = new Date().toISOString().split('T')[0];
-		const existing = db.prepare('SELECT * FROM word_status WHERE user_id = ? AND word = ?').get(userId, word);
+		const existing = await db.prepare('SELECT * FROM word_status WHERE user_id = ? AND word = ?').get(userId, word);
 
 		if (existing) {
 			const nextDate = new Date();
 			nextDate.setDate(nextDate.getDate() + 1);
 
-			db.prepare(`
+			await db.prepare(`
 				UPDATE word_status
 				SET repetition = 0,
-					interval = 1,
+					\`interval\` = 1,
 					mastered = 0,
 					next_review_date = ?,
 					last_review_date = ?,
@@ -133,19 +133,19 @@ router.post('/status/unknown', (req, res) => {
 			const nextDate = new Date();
 			nextDate.setDate(nextDate.getDate() + 1);
 
-			db.prepare(`
-				INSERT INTO word_status (user_id, word, repetition, interval, next_review_date, last_review_date, mastered)
+			await db.prepare(`
+				INSERT INTO word_status (user_id, word, repetition, \`interval\`, next_review_date, last_review_date, mastered)
 				VALUES (?, ?, 0, 1, ?, ?, 0)
 			`).run(userId, word, nextDate.toISOString().split('T')[0], today);
 		}
 
 		// 更新学习统计
-		const stats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const stats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		if (stats) {
 			const newPracticeCount = stats.total_practice_count + 1;
 			const newAccuracy = newPracticeCount > 0 ? Math.round((stats.correct_count / newPracticeCount) * 100) : 0;
 
-			db.prepare(`
+			await db.prepare(`
 				UPDATE learning_stats
 				SET total_words_learned = total_words_learned + 1,
 					total_practice_count = ?,

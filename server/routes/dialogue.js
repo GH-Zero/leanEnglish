@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取对话历史
-router.get('/history', (req, res) => {
+router.get('/history', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
-		const history = db.prepare('SELECT * FROM dialogue_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 20').all(userId);
+		const history = await db.prepare('SELECT * FROM dialogue_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 20').all(userId);
 
 		// 解析messages JSON
 		const formattedHistory = history.map(item => ({
@@ -22,18 +22,18 @@ router.get('/history', (req, res) => {
 });
 
 // 保存对话记录
-router.post('/history', (req, res) => {
+router.post('/history', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
 		const { scene_name, scene_icon, messages, average_score, duration } = req.body;
 
-		const result = db.prepare(`
+		const result = await db.prepare(`
 			INSERT INTO dialogue_history (user_id, scene_name, scene_icon, messages, average_score, duration)
 			VALUES (?, ?, ?, ?, ?, ?)
 		`).run(userId, scene_name, scene_icon, JSON.stringify(messages || []), average_score || 0, duration || 0);
 
 		// 更新口语练习统计
-		db.prepare(`
+		await db.prepare(`
 			UPDATE learning_stats
 			SET total_speak_practice = total_speak_practice + 1,
 				updated_at = CURRENT_TIMESTAMP
@@ -48,10 +48,10 @@ router.post('/history', (req, res) => {
 });
 
 // 清空对话历史
-router.delete('/history', (req, res) => {
+router.delete('/history', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId) || 1;
-		db.prepare('DELETE FROM dialogue_history WHERE user_id = ?').run(userId);
+		await db.prepare('DELETE FROM dialogue_history WHERE user_id = ?').run(userId);
 		res.json({ code: 0, message: '清空成功' });
 	} catch (error) {
 		console.error('清空对话历史失败:', error);

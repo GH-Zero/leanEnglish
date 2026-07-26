@@ -1,15 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('../database-sqlite');
+const { db } = require('../db');
 
 // 获取成就数据
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
 	try {
 		const userId = parseInt(req.query.userId) || 1;
 
 		// 获取学习统计
-		const stats = db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
-		const streak = db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
+		const stats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
+		const streak = await db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
 
 		const totalWords = stats ? stats.total_words_learned : 0;
 		const totalGrammar = stats ? stats.total_grammar_mastered : 0;
