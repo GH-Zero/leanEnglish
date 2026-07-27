@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 
@@ -55,6 +55,9 @@ router.get('/stats', async (req, res) => {
 			return res.json({ code: 0, data: null });
 		}
 
+		// “已学单词”统一按 word_status 中不同单词计数，重复练习不重复累计。
+		const learned = await db.prepare('SELECT COUNT(*) AS count FROM word_status WHERE user_id = ?').get(userId);
+		stats.total_words_learned = Number(learned?.count || 0);
 		res.json({ code: 0, data: stats });
 	} catch (error) {
 		console.error('获取学习统计失败:', error);
@@ -73,7 +76,8 @@ router.post('/stats/word', async (req, res) => {
 			return res.status(404).json({ code: 404, message: '用户统计不存在' });
 		}
 
-		const newTotalWords = stats.total_words_learned + count;
+		const learned = await db.prepare('SELECT COUNT(*) AS count FROM word_status WHERE user_id = ?').get(userId);
+		const newTotalWords = Number(learned?.count || 0);
 		const newCorrectCount = isCorrect ? stats.correct_count + count : stats.correct_count;
 		const newPracticeCount = stats.total_practice_count + count;
 		const newAccuracy = newPracticeCount > 0 ? Math.round((newCorrectCount / newPracticeCount) * 100) : 0;
@@ -335,3 +339,4 @@ async function updateDailyRecord(userId, data) {
 }
 
 module.exports = router;
+

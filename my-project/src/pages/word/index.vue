@@ -1,10 +1,16 @@
-<template>
+﻿<template>
 	<view class="container">
 		<view class="header">
 			<text class="title">单词学习</text>
 			<text class="subtitle">艾宾浩斯科学记忆</text>
 		</view>
-		<!-- 每日单词类型 -->
+		<!-- 固定学习统计：页面滚动时保持在顶部 -->
+		<view class="sticky-stats">
+			<view class="stat-item"><text class="stat-number">{{ masteredCount }}</text><text class="stat-label">已掌握</text></view>
+			<view class="stat-item"><text class="stat-number">{{ totalLearned }}</text><text class="stat-label">已学单词</text></view>
+			<view class="stat-item"><text class="stat-number">{{ accuracy }}%</text><text class="stat-label">正确率</text></view>
+			<view class="stat-item"><text class="stat-number wrong-number">{{ wrongCount }}</text><text class="stat-label">错题</text></view>
+		</view>		<!-- 每日单词类型 -->
 		<view class="section">
 			<text class="section-title">每日单词类型</text>
 			<view class="daily-category-card">
@@ -14,16 +20,17 @@
 					<text class="category-desc">{{ todayCategoryDescription }}</text>
 				</view>
 				<view class="category-meta">
-					<text>本类 {{ categoryCount }} 词</text>
-					<text>明日：{{ nextCategory || '--' }}</text>
+					<text>已完成 {{ categoryCompleted }}/{{ categoryCount }} 词</text>
+					<text>下一类：{{ nextCategory || '--' }}</text>
 				</view>
 			</view>
 			<scroll-view class="category-scroll" scroll-x>
 				<view class="category-list">
 					<view class="category-chip" v-for="item in categoryStats" :key="item.category"
-						:class="{ active: item.category === todayCategory }">
-						<text class="chip-name">{{ item.category }}</text>
-						<text class="chip-count">{{ item.count }}</text>
+						:class="{ active: item.category === todayCategory }" @click="selectCategory(item.category)">
+						<view class="chip-top"><text class="chip-name">{{ item.category }}</text><text class="chip-progress-text">{{ item.progress }}%</text></view>
+						<text class="chip-count">已完成 {{ item.completed }}/{{ item.count }}</text>
+						<view class="chip-progress"><view class="chip-progress-fill" :style="{ width: item.progress + '%' }"></view></view>
 					</view>
 				</view>
 			</scroll-view>
@@ -57,8 +64,8 @@
 				</view>
 				<view class="mode-card" @click="startMode('read')">
 					<text class="mode-icon">👀</text>
-					<text class="mode-name">看英文想中文</text>
-					<text class="mode-desc">显示英文，回忆中文意思</text>
+					<text class="mode-name">中文选英文</text>
+					<text class="mode-desc">显示中文，选择正确英文单词</text>
 				</view>
 				<view class="mode-card" @click="startMode('write')">
 					<text class="mode-icon">✍️</text>
@@ -76,8 +83,8 @@
 		<!-- 听音辨义模式 -->
 		<view class="section" v-if="learningMode === 'listen'">
 			<view class="mode-header">
-				<text class="mode-title">听音辨义</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }}</text>
+				<text class="mode-title">{{ isWrongBookMode ? '错题重练·听音辨义' : '听音辨义' }}</text>
+				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="listen-card" v-if="currentModeWord">
@@ -98,25 +105,21 @@
 			</view>
 		</view>
 
-		<!-- 看英文想中文模式 -->
+		<!-- 中文选英文模式 -->
 		<view class="section" v-if="learningMode === 'read'">
 			<view class="mode-header">
-				<text class="mode-title">看英文想中文</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }}</text>
+				<text class="mode-title">{{ isWrongBookMode ? '错题重练·中文选英文' : '中文选英文' }}</text>
+				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
-			<view class="read-card" v-if="currentModeWord">
-				<view class="read-front" v-if="!showBack" @click="flipCard">
-					<text class="read-word">{{ currentModeWord.word }}</text>
-					<text class="read-phonetic">{{ currentModeWord.phonetic_us }}</text>
-					<text class="read-hint">点击查看中文</text>
-				</view>
-				<view class="read-back" v-else>
-					<text class="read-meaning">{{ currentModeWord.chinese }}</text>
-					<text class="read-example">{{ currentModeWord.example }}</text>
-					<view class="read-actions">
-						<text class="action-btn know" @click="markKnown">认识</text>
-						<text class="action-btn unknown" @click="markUnknown">不认识</text>
+			<view class="read-card translation-card" v-if="currentModeWord">
+				<text class="translation-label">请选择对应的英文单词</text>
+				<text class="translation-meaning">{{ currentModeWord.chinese }}</text>
+				<view class="options-list translation-options">
+					<view class="option-item" v-for="(opt, i) in currentOptions" :key="i"
+						:class="{ correct: showResult && opt === currentModeWord.word, wrong: showResult && selectedOption === opt && opt !== currentModeWord.word }"
+						@click="selectEnglishOption(opt)">
+						<text class="option-text english-option">{{ opt }}</text>
 					</view>
 				</view>
 			</view>
@@ -125,8 +128,8 @@
 		<!-- 拼写默写模式 -->
 		<view class="section" v-if="learningMode === 'write'">
 			<view class="mode-header">
-				<text class="mode-title">拼写默写</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }}</text>
+				<text class="mode-title">{{ isWrongBookMode ? '错题重练·拼写默写' : '拼写默写' }}</text>
+				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="write-card" v-if="currentModeWord">
@@ -151,36 +154,45 @@
 		<!-- 单词跟读模式 -->
 		<view class="section" v-if="learningMode === 'speak'">
 			<view class="mode-header">
-				<text class="mode-title">单词跟读</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }}</text>
+				<text class="mode-title">{{ isWrongBookMode ? '错题重练·单词跟读' : '单词跟读' }}</text>
+				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="speak-card" v-if="currentModeWord">
 				<text class="speak-word">{{ currentModeWord.word }}</text>
 				<text class="speak-phonetic">{{ currentModeWord.phonetic_us }}</text>
 				<text class="speak-meaning">{{ currentModeWord.chinese }}</text>
-				<view class="speak-play" @click="playWord(currentModeWord.word)">
-					<text class="play-icon">🔊</text>
-					<text class="play-text">播放标准发音</text>
-				</view>
-				<view class="speak-record" :class="{ recording: isRecording }" @click="toggleRecord">
-					<text class="record-icon">{{ isRecording ? '⏹️' : '🎤' }}</text>
-					<text class="record-text">{{ isRecording ? '停止录音' : '点击跟读' }}</text>
-				</view>
-				<view class="speak-result" v-if="speakScore > 0">
-					<text class="score-text">发音评分：{{ speakScore }}分</text>
-					<view class="score-bar">
-						<view class="score-fill" :style="{ width: speakScore + '%' }"></view>
+				<view class="speak-actions">
+					<view class="speak-play action-control" @click="playWord(currentModeWord.word)">
+						<text class="play-icon">🔊</text>
+						<text class="play-text">标准发音</text>
 					</view>
-					<text class="speak-meaning">释义：{{ currentModeWord.chinese }}</text>
-					<text class="action-btn next" @click="nextModeWord">下一个</text>
+					<view class="speak-record action-control" :class="{ recording: isRecording, evaluating: isEvaluating }" @click="toggleRecord">
+						<text class="record-icon">{{ isEvaluating ? '⏳' : (isRecording ? '⏹️' : '🎤') }}</text>
+						<text class="record-text">{{ isEvaluating ? '正在评测' : (isRecording ? '停止录音' : '开始跟读') }}</text>
+					</view>
+				</view>
+				<view class="speak-result" v-if="evaluationState !== 'idle' && !isEvaluating">
+					<text class="evaluation-status" :class="evaluationState">
+						{{ evaluationState === 'passed' ? '✓ 发音通过' : (evaluationState === 'failed' ? '评测未通过' : '评测失败') }}
+					</text>
+					<text class="score-text" v-if="evaluationState !== 'error'">发音评分：{{ speakScore }}分</text>
+					<view class="score-bar" v-if="evaluationState !== 'error'"><view class="score-fill" :style="{ width: speakScore + '%' }"></view></view>
+					<text class="evaluation-message">{{ evaluationMessage }}</text>
+					<view class="evaluation-actions">
+						<text class="action-btn next" v-if="evaluationState === 'passed'" @click="nextModeWord">下一题</text>
+						<text class="action-btn retry" v-else @click="resetSpeakEvaluation">重新跟读</text>
+					</view>
 				</view>
 			</view>
 		</view>
 
 		<!-- 记忆卡片（默认模式） -->
 		<view class="section" v-if="!learningMode">
-			<text class="section-title">记忆卡片</text>
+			<view class="memory-heading">
+				<view><text class="section-title memory-title">记忆卡片</text><text class="memory-desc">先回忆再翻面，选择“记住了”或“还需练习”，系统会安排复习。</text></view>
+				<view class="wrong-book-btn" @click="startWrongBook"><text>错题本 {{ wrongCount }}</text></view>
+			</view>
 			<view class="card-container" v-if="currentWord">
 				<view class="card" @click="flipCard">
 					<view class="card-front" v-if="!showBack">
@@ -192,8 +204,8 @@
 						<text class="card-meaning">{{ currentWord.chinese }}</text>
 						<text class="card-example">{{ currentWord.example }}</text>
 						<view class="card-actions">
-							<text class="action-btn know" @click="markKnown">认识</text>
-							<text class="action-btn unknown" @click="markUnknown">不认识</text>
+							<text class="action-btn know" @click="markKnown">记住了</text>
+							<text class="action-btn unknown" @click="markUnknown">还需练习</text>
 						</view>
 					</view>
 				</view>
@@ -205,24 +217,6 @@
 			</view>
 		</view>
 
-		<!-- 学习统计 -->
-		<view class="section" v-if="!learningMode">
-			<text class="section-title">学习统计</text>
-			<view class="stats-card">
-				<view class="stat-item">
-					<text class="stat-number">{{ masteredCount }}</text>
-					<text class="stat-label">已掌握</text>
-				</view>
-				<view class="stat-item">
-					<text class="stat-number">{{ totalLearned }}</text>
-					<text class="stat-label">已学单词</text>
-				</view>
-				<view class="stat-item">
-					<text class="stat-number">{{ accuracy }}%</text>
-					<text class="stat-label">正确率</text>
-				</view>
-			</view>
-		</view>
 	</view>
 </template>
 
@@ -238,7 +232,11 @@ export default {
 			todayCategoryDescription: '',
 			nextCategory: '',
 			categoryCount: 0,
+			categoryCompleted: 0,
 			categoryStats: [],
+			selectedCategory: '名词',
+			wrongCount: 0,
+			wrongModeCounts: { listen: 0, read: 0, write: 0, speak: 0 },
 			dailyPlan: 10,
 			showBack: false,
 			currentWordIndex: 0,
@@ -247,6 +245,7 @@ export default {
 			wordStatus: {},
 			// 学习模式
 			learningMode: '',
+			isWrongBookMode: false,
 			modeWords: [],
 			modeIndex: 0,
 			// 听音辨义
@@ -258,7 +257,11 @@ export default {
 			writeHint: '',
 			// 跟读
 			isRecording: false,
+			isEvaluating: false,
+			recordTimer: null,
 			speakScore: 0,
+			evaluationState: 'idle',
+			evaluationMessage: '',
 			recordManager: null,
 			// 统计
 			todayNew: 0,
@@ -284,6 +287,10 @@ export default {
 		accuracy() {
 			if (this.totalAttempts === 0) return 0;
 			return Math.round((this.correctCount / this.totalAttempts) * 100);
+		},
+		currentModeProgress() {
+			const status = this.currentModeWord ? this.wordStatus[this.currentModeWord.word] : null;
+			return status?.completed_modes || 0;
 		}
 	},
 	onLoad() {
@@ -293,20 +300,27 @@ export default {
 		this.loadWordCounts();
 		this.loadWords();
 		this.loadStats();
+		this.loadWrongCount();
 	},
 	methods: {
 		initRecorder() {
 			this.recordManager = uni.getRecorderManager();
 			this.recordManager.onStop((res) => {
 				this.isRecording = false;
+				if (this.recordTimer) { clearTimeout(this.recordTimer); this.recordTimer = null; }
 				this.evaluateWordRecording(res.tempFilePath);
 			});
 			this.recordManager.onError(() => {
 				this.isRecording = false;
-				uni.showToast({ title: '录音失败', icon: 'none' });
+				this.isEvaluating = false;
+				if (this.recordTimer) { clearTimeout(this.recordTimer); this.recordTimer = null; }
+				this.evaluationState = 'error';
+				this.evaluationMessage = '录音失败，请检查麦克风权限后重试。';
 			});
 		},
 		evaluateWordRecording(filePath) {
+			const system = uni.getSystemInfoSync();
+			this.isEvaluating = true;
 			uni.showLoading({ title: '评测中...' });
 			const fs = uni.getFileSystemManager();
 			fs.readFile({
@@ -314,43 +328,62 @@ export default {
 				encoding: 'base64',
 				success: (res) => {
 					const audioBase64 = res.data;
+					const normalizedPath = String(filePath || '').toLowerCase();
+					const isMp3 = normalizedPath.endsWith('.mp3') || /^SUQz/.test(audioBase64) || audioBase64.startsWith('//');
+					const audioFormat = isMp3 ? 'mp3' : 'wav';
+					if (system.platform === 'devtools' && isMp3) {
+						uni.hideLoading();
+						this.isEvaluating = false;
+						this.evaluationState = 'error';
+						this.evaluationMessage = '开发者工具录音为 MP3，无法稳定评测。请使用真机预览测试评分。';
+						return;
+					}
 					const word = this.currentModeWord ? this.currentModeWord.word : 'hello';
 					uni.request({
 						url: BASE_URL + '/speech/evaluate',
 						method: 'POST',
 						header: { 'Content-Type': 'application/json' },
-						data: { audioBase64, word, category: 'read_word' },
+						data: { audioBase64, word, category: 'read_word', audioFormat },
 						success: (response) => {
 							uni.hideLoading();
+							this.isEvaluating = false;
 							if (response.statusCode === 200 && response.data.code === 0) {
 								const result = response.data.data;
-								this.speakScore = result.score;
+								this.speakScore = Number(result.score || 0);
+								this.evaluationState = this.speakScore >= 70 ? 'passed' : 'failed';
+								this.evaluationMessage = result.feedback || (this.speakScore >= 70 ? '发音达标，可以进入下一题。' : '还未达到 70 分，请重新跟读。');
 								this.totalAttempts++;
-								if (result.score >= 70) {
+								if (this.speakScore >= 70) {
 									this.correctCount++;
-									this.markWordKnownAPI(this.currentModeWord.word);
+									this.markWordKnownAPI(this.currentModeWord.word, 'speak');
 								} else {
-									this.markWordUnknownAPI(this.currentModeWord.word);
+									this.markWordUnknownAPI(this.currentModeWord.word, 'speak');
 								}
 							} else {
-								uni.showToast({ title: '评测失败', icon: 'none' });
+								console.error('语音评测失败详情:', response.data);
+								this.evaluationState = 'error';
+								this.evaluationMessage = response.data?.message || '评测服务暂时不可用，请重新跟读。';
 							}
 						},
 						fail: () => {
 							uni.hideLoading();
-							uni.showToast({ title: '评测服务异常', icon: 'none' });
+							this.isEvaluating = false;
+							this.evaluationState = 'error';
+							this.evaluationMessage = '评测服务连接异常，请重新跟读。';
 						}
 					});
 				},
 				fail: () => {
 					uni.hideLoading();
-					uni.showToast({ title: '录音读取失败', icon: 'none' });
+					this.isEvaluating = false;
+					this.evaluationState = 'error';
+					this.evaluationMessage = '录音读取失败，请重新跟读。';
 				}
 			});
 		},
 		async loadWordCounts() {
 			try {
-				const res = await this.request('/words/count');
+				const res = await this.request('/words/count?userId=1');
 				if (res) {
 					const counts = {};
 					(res.stats || []).forEach(item => counts[item.level] = item.count);
@@ -364,15 +397,18 @@ export default {
 		async loadWords() {
 			this.loading = true;
 			try {
-				const res = await this.request(`/words/daily?userId=1&limit=${this.dailyPlan}`);
+				const categoryQuery = this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
+				const res = await this.request(`/words/daily?userId=1&limit=${this.dailyPlan}${categoryQuery}`);
 				if (res && res.words) {
 					this.wordList = res.words;
 					this.todayNew = res.newCount || 0;
 					this.todayReview = res.reviewCount || 0;
 					this.todayCategory = res.category || '';
+					this.selectedCategory = this.todayCategory;
 					this.todayCategoryDescription = res.categoryDescription || '';
 					this.nextCategory = res.nextCategory || '';
 					this.categoryCount = res.categoryCount || 0;
+					this.categoryCompleted = res.masteredCount || 0;
 					this.currentWordIndex = 0;
 					this.showBack = false;
 				}
@@ -407,45 +443,79 @@ export default {
 				}
 			} catch (e) {}
 		},
-		selectLevel(level) {
+		async selectCategory(category) {
+			if (this.loading || category === this.selectedCategory) return;
+			this.selectedCategory = category;
+			this.learningMode = '';
+			await this.loadWords();
+		},
+		async loadWrongCount() {
+			try {
+				const res = await this.request('/words/wrong?userId=1&limit=1');
+				this.wrongCount = Number(res?.total || 0);
+				this.wrongModeCounts = res?.byMode || { listen: 0, read: 0, write: 0, speak: 0 };
+			} catch (error) {
+				console.error('加载错题数量失败:', error);
+			}
+		},
+		async startWrongBook() {
+			if (!this.wrongCount) {
+				uni.showToast({ title: '错题本还是空的', icon: 'none' });
+				return;
+			}
+			const configs = [
+				{ mode: 'listen', label: `听音辨义错题（${this.wrongModeCounts.listen || 0}）` },
+				{ mode: 'read', label: `中文选英文错题（${this.wrongModeCounts.read || 0}）` },
+				{ mode: 'write', label: `拼写默写错题（${this.wrongModeCounts.write || 0}）` },
+				{ mode: 'speak', label: `单词跟读错题（${this.wrongModeCounts.speak || 0}）` }
+			].filter((item) => Number(this.wrongModeCounts[item.mode] || 0) > 0);
+			if (configs.length === 1) {
+				this.startWrongMode(configs[0].mode);
+				return;
+			}
+			uni.showActionSheet({
+				itemList: configs.map((item) => item.label),
+				success: ({ tapIndex }) => this.startWrongMode(configs[tapIndex].mode)
+			});
+		},
+		async startWrongMode(mode) {
+			try {
+				const res = await this.request(`/words/wrong?userId=1&limit=100&mode=${mode}`);
+				if (!res.words?.length) {
+					uni.showToast({ title: '该类型错题已完成', icon: 'none' });
+					this.loadWrongCount();
+					return;
+				}
+				this.learningMode = mode;
+				this.isWrongBookMode = true;
+				this.modeWords = res.words;
+				this.modeIndex = 0;
+				this.showBack = false;
+				this.selectedOption = '';
+				this.writeInput = '';
+				this.writeResult = '';
+				if (mode === 'listen') {
+					this.generateOptions();
+					setTimeout(() => this.currentModeWord && this.playWord(this.currentModeWord.word), 300);
+				} else if (mode === 'read') {
+					this.generateEnglishOptions();
+				}
+			} catch (error) {
+				uni.showToast({ title: '加载错题本失败', icon: 'none' });
+			}
+		},		selectLevel(level) {
 			this.currentLevel = level;
 			this.loadWords();
 		},
 		flipCard() {
 			this.showBack = !this.showBack;
 		},
-		async markKnown() {
-			const word = this.currentWord ? this.currentWord.word : (this.currentModeWord ? this.currentModeWord.word : '');
-			if (!word) return;
-			try {
-				await markWordAsKnown(word);
-				this.correctCount++;
-				this.totalAttempts++;
-				this.saveLocalStatus(word, true);
-			} catch (e) {
-				console.error('标记认识失败:', e);
-			}
-			if (this.learningMode) {
-				this.nextModeWord();
-			} else {
-				this.nextWord();
-			}
+		markKnown() {
+			// 记忆卡片只用于自测，不计入四个必修模块完成进度。
+			this.nextWord();
 		},
-		async markUnknown() {
-			const word = this.currentWord ? this.currentWord.word : (this.currentModeWord ? this.currentModeWord.word : '');
-			if (!word) return;
-			try {
-				await markWordAsUnknown(word);
-				this.totalAttempts++;
-				this.saveLocalStatus(word, false);
-			} catch (e) {
-				console.error('标记不认识失败:', e);
-			}
-			if (this.learningMode) {
-				this.nextModeWord();
-			} else {
-				this.nextWord();
-			}
+		markUnknown() {
+			this.nextWord();
 		},
 		saveLocalStatus(word, known) {
 			if (!this.wordStatus[word]) {
@@ -478,6 +548,7 @@ export default {
 				return;
 			}
 			this.learningMode = mode;
+			this.isWrongBookMode = false;
 			this.modeWords = [...this.wordList];
 			this.modeIndex = 0;
 			this.showBack = false;
@@ -486,7 +557,13 @@ export default {
 			this.writeResult = '';
 			this.writeHint = '';
 			this.speakScore = 0;
+			this.evaluationState = 'idle';
+			this.evaluationMessage = '';
 			this.isRecording = false;
+
+			if (mode === 'read') {
+				this.generateEnglishOptions();
+			}
 
 			if (mode === 'listen') {
 				this.generateOptions();
@@ -498,10 +575,22 @@ export default {
 				}, 500);
 			}
 		},
-		exitMode() {
+		async exitMode() {
 			this.learningMode = '';
+			this.isWrongBookMode = false;
 			this.modeWords = [];
 			this.modeIndex = 0;
+			this.showBack = false;
+			this.selectedOption = '';
+			this.writeInput = '';
+			this.writeResult = '';
+			this.speakScore = 0;
+			await Promise.all([
+				this.loadWordCounts(),
+				this.loadWords(),
+				this.loadStats(),
+				this.loadWrongCount()
+			]);
 		},
 		nextModeWord() {
 			this.modeIndex++;
@@ -511,12 +600,18 @@ export default {
 			this.writeResult = '';
 			this.writeHint = '';
 			this.speakScore = 0;
+			this.evaluationState = 'idle';
+			this.evaluationMessage = '';
 			this.isRecording = false;
 
 			if (this.modeIndex >= this.modeWords.length) {
 				uni.showToast({ title: '本轮练习完成！', icon: 'success' });
 				setTimeout(() => this.exitMode(), 1500);
 				return;
+			}
+
+			if (this.learningMode === 'read') {
+				this.generateEnglishOptions();
 			}
 
 			if (this.learningMode === 'listen') {
@@ -537,6 +632,27 @@ export default {
 			const options = [correct, ...shuffled.map(w => w.chinese)].sort(() => Math.random() - 0.5);
 			this.currentOptions = options;
 		},
+		generateEnglishOptions() {
+			if (!this.currentModeWord) return;
+			const correct = this.currentModeWord.word;
+			const candidates = this.wordList.filter((item) => item.word !== correct);
+			const distractors = [...candidates].sort(() => Math.random() - 0.5).slice(0, 3);
+			this.currentOptions = [correct, ...distractors.map((item) => item.word)]
+				.sort(() => Math.random() - 0.5);
+		},
+		async selectEnglishOption(option) {
+			if (this.selectedOption) return;
+			this.selectedOption = option;
+			const isCorrect = option === this.currentModeWord.word;
+			this.totalAttempts++;
+			if (isCorrect) {
+				this.correctCount++;
+				await this.markWordKnownAPI(this.currentModeWord.word, 'read');
+			} else {
+				await this.markWordUnknownAPI(this.currentModeWord.word, 'read');
+			}
+			setTimeout(() => this.nextModeWord(), 1000);
+		},
 		async selectOption(opt) {
 			if (this.selectedOption) return;
 			this.selectedOption = opt;
@@ -544,9 +660,9 @@ export default {
 			this.totalAttempts++;
 			if (isCorrect) {
 				this.correctCount++;
-				await this.markWordKnownAPI(this.currentModeWord.word);
+				await this.markWordKnownAPI(this.currentModeWord.word, 'listen');
 			} else {
-				await this.markWordUnknownAPI(this.currentModeWord.word);
+				await this.markWordUnknownAPI(this.currentModeWord.word, 'listen');
 			}
 			setTimeout(() => this.nextModeWord(), 1000);
 		},
@@ -562,9 +678,9 @@ export default {
 			this.totalAttempts++;
 			if (input === correct) {
 				this.correctCount++;
-				this.markWordKnownAPI(this.currentModeWord.word);
+				this.markWordKnownAPI(this.currentModeWord.word, 'write');
 			} else {
-				this.markWordUnknownAPI(this.currentModeWord.word);
+				this.markWordUnknownAPI(this.currentModeWord.word, 'write');
 			}
 		},
 		showWriteHint() {
@@ -581,30 +697,70 @@ export default {
 				console.error('音频播放失败:', err);
 			});
 		},
-		toggleRecord() {
+		async toggleRecord() {
+			if (this.isEvaluating) return;
 			if (this.isRecording) {
 				this.recordManager.stop();
-			} else {
-				this.speakScore = 0;
-				this.isRecording = true;
-				this.recordManager.start({
-					duration: 10000,
-					sampleRate: 16000,
-					numberOfChannels: 1,
-					format: 'wav'
-				});
-				setTimeout(() => {
-					if (this.isRecording) {
-						this.recordManager.stop();
-					}
-				}, 5000);
+				return;
 			}
+			const granted = await this.ensureRecordPermission();
+			if (!granted) return;
+			this.speakScore = 0;
+			this.isRecording = true;
+			this.recordManager.start({ duration: 10000, sampleRate: 16000, numberOfChannels: 1, format: 'wav' });
+			this.recordTimer = setTimeout(() => { if (this.isRecording) this.recordManager.stop(); }, 5000);
 		},
-		async markWordKnownAPI(word) {
-			try { await markWordAsKnown(word); } catch (e) {}
+		ensureRecordPermission() {
+			return new Promise((resolve) => {
+				uni.getSetting({
+					success: (settings) => {
+						const state = settings.authSetting['scope.record'];
+						if (state === true) {
+							resolve(true);
+							return;
+						}
+						if (state === false) {
+							uni.showModal({
+								title: '需要麦克风权限',
+								content: '请在设置中开启麦克风权限后继续跟读。',
+								confirmText: '去设置',
+								success: (modal) => {
+									if (!modal.confirm) { resolve(false); return; }
+									uni.openSetting({
+										success: (result) => resolve(result.authSetting['scope.record'] === true),
+										fail: () => { uni.showToast({ title: '无法打开权限设置', icon: 'none' }); resolve(false); }
+									});
+								}
+							});
+							return;
+						}
+						uni.authorize({
+							scope: 'scope.record',
+							success: () => resolve(true),
+							fail: () => resolve(false)
+						});
+					},
+					fail: () => {
+						if (uni.getSystemInfoSync().platform === 'devtools') {
+							resolve(true);
+							return;
+						}
+						uni.showToast({ title: '无法读取麦克风权限', icon: 'none' });
+						resolve(false);
+					}
+				});
+			});
 		},
-		async markWordUnknownAPI(word) {
-			try { await markWordAsUnknown(word); } catch (e) {}
+		resetSpeakEvaluation() {
+			this.speakScore = 0;
+			this.evaluationState = 'idle';
+			this.evaluationMessage = '';
+		},
+		async markWordKnownAPI(word, mode) {
+			try { await markWordAsKnown(word, mode); this.loadWrongCount(); } catch (e) { console.error('记录模块完成失败:', e); }
+		},
+		async markWordUnknownAPI(word, mode) {
+			try { await markWordAsUnknown(word, mode); this.loadWrongCount(); } catch (e) { console.error('记录模块错题失败:', e); }
 		},
 
 		// ========== 通用请求 ==========
@@ -635,6 +791,27 @@ export default {
 	background-color: #F7F5F0;
 	min-height: 100vh;
 }
+.sticky-stats {
+	position: sticky;
+	top: 0;
+	z-index: 20;
+	display: flex;
+	justify-content: space-around;
+	background: rgba(255,255,255,0.98);
+	border-radius: 18rpx;
+	padding: 18rpx 8rpx;
+	box-shadow: 0 6rpx 20rpx rgba(31,58,95,0.12);
+}
+.sticky-stats .stat-item { flex: 1; text-align: center; border-right: 1rpx solid #EEF0F2; }
+.sticky-stats .stat-item:last-child { border-right: none; }
+.sticky-stats .stat-number { display: block; font-size: 30rpx; font-weight: bold; color: #0D9488; }
+.sticky-stats .stat-label { display: block; margin-top: 4rpx; font-size: 21rpx; color: #7A7A7A; }
+.sticky-stats .wrong-number { color: #DC5A5A; }
+.memory-heading { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin-bottom: 20rpx; }
+.memory-heading > view:first-child { flex: 1; }
+.memory-title { margin-bottom: 6rpx; }
+.memory-desc { display: block; font-size: 22rpx; line-height: 1.5; color: #7A7A7A; }
+.wrong-book-btn { flex-shrink: 0; padding: 14rpx 20rpx; color: #C24141; background: #FFF1F1; border: 1rpx solid #F4BABA; border-radius: 28rpx; font-size: 23rpx; }
 .header {
 	text-align: center;
 	padding: 20rpx 0;
@@ -684,8 +861,10 @@ export default {
 .category-list { display: inline-flex; gap: 14rpx; padding-bottom: 4rpx; }
 .category-chip {
 	display: flex;
-	align-items: center;
-	gap: 10rpx;
+	flex-direction: column;
+	align-items: stretch;
+	min-width: 170rpx;
+	gap: 4rpx;
 	background: #FFFFFF;
 	border: 2rpx solid #E5E7EB;
 	border-radius: 30rpx;
@@ -694,6 +873,11 @@ export default {
 .category-chip.active { background: #E6F7F5; border-color: #0D9488; }
 .chip-name { font-size: 25rpx; color: #1F3A5F; font-weight: 600; }
 .chip-count { font-size: 22rpx; color: #7A7A7A; }
+.chip-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+.chip-progress-text { font-size: 20rpx; color: #0D9488; font-weight: 600; }
+.chip-count { margin-top: 5rpx; }
+.chip-progress { width: 150rpx; height: 6rpx; margin-top: 8rpx; overflow: hidden; border-radius: 6rpx; background: #E5E7EB; }
+.chip-progress-fill { height: 100%; border-radius: 6rpx; background: #0D9488; }
 /* 词库 */
 .wordbook-list {
 	background-color: #FFFFFF;
@@ -852,7 +1036,12 @@ export default {
 	font-size: 30rpx;
 	color: #333333;
 }
-/* 看英文想中文 */
+/* 中文选英文 */
+.translation-card { padding: 38rpx 30rpx; text-align: center; }
+.translation-label { display: block; font-size: 24rpx; color: #7A7A7A; }
+.translation-meaning { display: block; margin: 26rpx 0 34rpx; font-size: 46rpx; line-height: 1.4; font-weight: bold; color: #1F3A5F; }
+.translation-options { text-align: left; }
+.english-option { font-weight: 600; color: #1F3A5F; }
 .read-card {
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
@@ -971,25 +1160,20 @@ export default {
 	display: block;
 	margin-bottom: 30rpx;
 }
-.speak-play {
-	display: inline-flex;
-	align-items: center;
-	background-color: #E6F7F5;
-	padding: 20rpx 40rpx;
-	border-radius: 40rpx;
-	margin-bottom: 30rpx;
-}
-.speak-record {
-	display: inline-flex;
-	align-items: center;
-	background-color: #1F3A5F;
-	padding: 30rpx 60rpx;
-	border-radius: 50rpx;
-	margin-bottom: 30rpx;
-}
+.speak-actions { display: flex; gap: 18rpx; margin: 8rpx 0 30rpx; }
+.action-control { flex: 1; min-height: 88rpx; box-sizing: border-box; justify-content: center; margin: 0; padding: 18rpx 16rpx; }
+.speak-play { display: flex; align-items: center; background-color: #E6F7F5; border-radius: 18rpx; }
+.speak-record { display: flex; align-items: center; background-color: #1F3A5F; border-radius: 18rpx; }
 .speak-record.recording { background-color: #EF4444; }
-.record-icon { font-size: 48rpx; margin-right: 10rpx; }
-.record-text { font-size: 30rpx; color: #FFFFFF; }
+.speak-record.evaluating { background-color: #64748B; }
+.record-icon { font-size: 34rpx; margin-right: 8rpx; }
+.record-text { font-size: 26rpx; color: #FFFFFF; white-space: nowrap; }
+.evaluation-status { display: block; font-size: 32rpx; font-weight: bold; margin-bottom: 12rpx; }
+.evaluation-status.passed { color: #059669; }
+.evaluation-status.failed, .evaluation-status.error { color: #DC2626; }
+.evaluation-message { display: block; margin: 18rpx 0; font-size: 26rpx; color: #64748B; line-height: 1.5; }
+.evaluation-actions { display: flex; justify-content: center; }
+.action-btn.retry { background: #F59E0B; color: #FFFFFF; }
 .speak-result {
 	margin-top: 20rpx;
 }
@@ -1122,3 +1306,21 @@ export default {
 	display: block;
 }
 </style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

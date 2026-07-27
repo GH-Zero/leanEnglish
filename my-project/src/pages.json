@@ -1,138 +1,28 @@
-{
-	"pages": [
-		{
-			"path": "pages/home/index",
-			"style": {
-				"navigationBarTitleText": "首页"
-			}
-		},
-		{
-			"path": "pages/learn/index",
-			"style": {
-				"navigationBarTitleText": "学习中心"
-			}
-		},
-		{
-			"path": "pages/speak/index",
-			"style": {
-				"navigationBarTitleText": "口语练习"
-			}
-		},
-		{
-			"path": "pages/mine/index",
-			"style": {
-				"navigationBarTitleText": "我的"
-			}
-		},
-		{
-			"path": "pages/phonetic/index",
-			"style": {
-				"navigationBarTitleText": "音标学习"
-			}
-		},
-		{
-			"path": "pages/word/index",
-			"style": {
-				"navigationBarTitleText": "单词学习"
-			}
-		},
-		{
-			"path": "pages/grammar/index",
-			"style": {
-				"navigationBarTitleText": "语法学习"
-			}
-		},
-		{
-			"path": "pages/dialogue/index",
-			"style": {
-				"navigationBarTitleText": "AI对话"
-			}
-		},
-		{
-			"path": "pages/mine/wrong-book",
-			"style": {
-				"navigationBarTitleText": "错题本"
-			}
-		},
-		{
-			"path": "pages/mine/word-book",
-			"style": {
-				"navigationBarTitleText": "生词本"
-			}
-		},
-		{
-			"path": "pages/mine/statistics",
-			"style": {
-				"navigationBarTitleText": "学习统计"
-			}
-		},
-		{
-			"path": "pages/mine/achievement",
-			"style": {
-				"navigationBarTitleText": "成就系统"
-			}
-		},
-		{
-			"path": "pages/mine/settings",
-			"style": {
-				"navigationBarTitleText": "学习设置"
-			}
-		},
-		{
-			"path": "pages/mine/notification",
-			"style": {
-				"navigationBarTitleText": "消息提醒"
-			}
-		},
-		{
-			"path": "pages/mine/profile",
-			"style": {
-				"navigationBarTitleText": "个人信息"
-			}
-		},
-		{
-			"path": "pages/challenge/index",
-			"style": {
-				"navigationBarTitleText": "每日闯关"
-			}
-		}
-	],
-	"globalStyle": {
-		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "英语学习小程序",
-		"navigationBarBackgroundColor": "#1F3A5F",
-		"backgroundColor": "#F7F5F0"
-	},
-	"tabBar": {
-		"color": "#7A7A7A",
-		"selectedColor": "#1F3A5F",
-		"borderStyle": "black",
-		"backgroundColor": "#FFFFFF",
-		"list": [
-			{
-				"pagePath": "pages/home/index",
-				"text": "首页",
-				"iconPath": "static/tab/home.png",
-				"selectedIconPath": "static/tab/home-active.png"
-			},
-			{
-				"pagePath": "pages/learn/index",
-				"text": "学习中心",
-				"iconPath": "static/tab/learn.png",
-				"selectedIconPath": "static/tab/learn-active.png"
-			},
-			{
-				"pagePath": "pages/speak/index",
-				"text": "口语练习",
-				"iconPath": "static/tab/speak.png",
-				"selectedIconPath": "static/tab/speak-active.png"
-			},
-			{
-				"pagePath": "pages/mine/index",
-				"text": "我的",
-				"iconPath": "static/tab/mine.png",
-				"selectedIconPath": "static/tab/mine-active.png"
-			}
-		]
-	}
+﻿{
+  "pages": [
+    {"path":"pages/home/index","style":{"navigationBarTitleText":"首页"}},
+    {"path":"pages/learn/index","style":{"navigationBarTitleText":"学习中心"}},
+    {"path":"pages/speak/index","style":{"navigationBarTitleText":"口语练习"}},
+    {"path":"pages/mine/index","style":{"navigationBarTitleText":"我的"}},
+    {"path":"pages/phonetic/index","style":{"navigationBarTitleText":"音标学习"}},
+    {"path":"pages/word/index","style":{"navigationBarTitleText":"单词学习"}},
+    {"path":"pages/grammar/index","style":{"navigationBarTitleText":"语法学习"}},
+    {"path":"pages/grammar/list","style":{"navigationBarTitleText":"语法点"}},{"path":"pages/grammar/wrong","style":{"navigationBarTitleText":"语法错题本"}},{"path":"pages/grammar/practice","style":{"navigationBarTitleText":"语法练习"}},
+    {"path":"pages/dialogue/index","style":{"navigationBarTitleText":"AI 对话"}},
+    {"path":"pages/mine/wrong-book","style":{"navigationBarTitleText":"错题本"}},
+    {"path":"pages/mine/word-book","style":{"navigationBarTitleText":"生词本"}},
+    {"path":"pages/mine/statistics","style":{"navigationBarTitleText":"学习统计"}},
+    {"path":"pages/mine/achievement","style":{"navigationBarTitleText":"成就系统"}},
+    {"path":"pages/mine/settings","style":{"navigationBarTitleText":"学习设置"}},
+    {"path":"pages/mine/notification","style":{"navigationBarTitleText":"消息提醒"}},
+    {"path":"pages/mine/profile","style":{"navigationBarTitleText":"个人信息"}},
+    {"path":"pages/challenge/index","style":{"navigationBarTitleText":"每日闯关"}}
+  ],
+  "globalStyle":{"navigationBarTextStyle":"black","navigationBarTitleText":"英语学习小程序","navigationBarBackgroundColor":"#1F3A5F","backgroundColor":"#F7F5F0"},
+  "tabBar":{"color":"#7A7A7A","selectedColor":"#1F3A5F","borderStyle":"black","backgroundColor":"#FFFFFF","list":[
+    {"pagePath":"pages/home/index","text":"首页","iconPath":"static/tab/home.png","selectedIconPath":"static/tab/home-active.png"},
+    {"pagePath":"pages/learn/index","text":"学习中心","iconPath":"static/tab/learn.png","selectedIconPath":"static/tab/learn-active.png"},
+    {"pagePath":"pages/speak/index","text":"口语练习","iconPath":"static/tab/speak.png","selectedIconPath":"static/tab/speak-active.png"},
+    {"pagePath":"pages/mine/index","text":"我的","iconPath":"static/tab/mine.png","selectedIconPath":"static/tab/mine-active.png"}
+  ]}
 }

@@ -1,4 +1,4 @@
-const mysql = require('mysql2/promise');
+﻿const mysql = require('mysql2/promise');
 
 const databaseName = process.env.DB_NAME || 'english_learning';
 if (!/^[a-zA-Z0-9_]+$/.test(databaseName)) {
@@ -95,6 +95,11 @@ const schemaStatements = [
     next_review_date DATE,
     last_review_date DATE,
     mastered TINYINT(1) DEFAULT 0,
+    listen_done TINYINT(1) DEFAULT 0,
+    read_done TINYINT(1) DEFAULT 0,
+    write_done TINYINT(1) DEFAULT 0,
+    speak_done TINYINT(1) DEFAULT 0,
+    wrong_mode VARCHAR(20) NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY unique_user_word (user_id, word),
@@ -257,6 +262,22 @@ async function ensureWordSchema() {
     await pool.query('ALTER TABLE words ADD INDEX idx_words_frequency_rank (frequency_rank)');
   }
 }
+async function ensureWordStatusSchema() {
+  const [columns] = await pool.query('SHOW COLUMNS FROM word_status');
+  const columnNames = new Set(columns.map((column) => column.Field));
+  const modeColumns = [
+    ['listen_done', 'TINYINT(1) DEFAULT 0'],
+    ['read_done', 'TINYINT(1) DEFAULT 0'],
+    ['write_done', 'TINYINT(1) DEFAULT 0'],
+    ['speak_done', 'TINYINT(1) DEFAULT 0'],
+    ['wrong_mode', 'VARCHAR(20) NULL']
+  ];
+  for (const [name, definition] of modeColumns) {
+    if (!columnNames.has(name)) {
+      await pool.query(`ALTER TABLE word_status ADD COLUMN ${name} ${definition} AFTER mastered`);
+    }
+  }
+}
 async function testConnection() {
   try {
     await adminPool.query('SELECT 1');
@@ -276,6 +297,7 @@ async function initDatabase() {
     await pool.query(statement);
   }
   await ensureWordSchema();
+  await ensureWordStatusSchema();
 
   await pool.query(
     'INSERT IGNORE INTO users (openid, nickname, avatar) VALUES (?, ?, ?)',
@@ -302,3 +324,6 @@ module.exports = {
   initDatabase,
   closeDatabase
 };
+
+
+

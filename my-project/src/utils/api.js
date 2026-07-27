@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API 调用封装
  * 统一管理所有后端接口调用
  */
@@ -116,15 +116,15 @@ export function getWordStatus(userId = DEFAULT_USER_ID) {
 /**
  * 标记单词为认识
  */
-export function markWordAsKnown(word, userId = DEFAULT_USER_ID) {
-	return request('/word/status/known', 'POST', { word, userId });
+export function markWordAsKnown(word, mode, userId = DEFAULT_USER_ID) {
+	return request('/word/status/known', 'POST', { word, mode, userId });
 }
 
 /**
  * 标记单词为不认识
  */
-export function markWordAsUnknown(word, userId = DEFAULT_USER_ID) {
-	return request('/word/status/unknown', 'POST', { word, userId });
+export function markWordAsUnknown(word, mode, userId = DEFAULT_USER_ID) {
+	return request('/word/status/unknown', 'POST', { word, mode, userId });
 }
 
 // ==================== 语法相关 ====================
@@ -251,3 +251,4 @@ export default {
 	updateSettings,
 	evaluateSpeech
 };
+
