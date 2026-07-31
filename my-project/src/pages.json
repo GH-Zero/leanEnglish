@@ -1,4 +1,4 @@
-﻿{
+{
   "pages": [
     {"path":"pages/home/index","style":{"navigationBarTitleText":"首页"}},
     {"path":"pages/learn/index","style":{"navigationBarTitleText":"学习中心"}},
@@ -10,7 +10,8 @@
     {"path":"pages/grammar/list","style":{"navigationBarTitleText":"语法点"}},{"path":"pages/grammar/wrong","style":{"navigationBarTitleText":"语法错题本"}},{"path":"pages/grammar/practice","style":{"navigationBarTitleText":"语法练习"}},
     {"path":"pages/dialogue/index","style":{"navigationBarTitleText":"AI 对话"}},
     {"path":"pages/mine/wrong-book","style":{"navigationBarTitleText":"错题本"}},
-    {"path":"pages/mine/word-book","style":{"navigationBarTitleText":"生词本"}},
+    {"path":"pages/mine/wrong-practice","style":{"navigationBarTitleText":"错题重练"}},
+    {"path":"pages/mine/word-book","style":{"navigationBarTitleText":"单词词典"}},
     {"path":"pages/mine/statistics","style":{"navigationBarTitleText":"学习统计"}},
     {"path":"pages/mine/achievement","style":{"navigationBarTitleText":"成就系统"}},
     {"path":"pages/mine/settings","style":{"navigationBarTitleText":"学习设置"}},

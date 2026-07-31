@@ -1,6 +1,11 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
+function chinaDate(date = new Date()) {
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
+	}).format(date);
+}
 
 // 获取用户信息
 router.get('/profile', async (req, res) => {
@@ -205,6 +210,7 @@ router.post('/stats/study-time', async (req, res) => {
 		`).run(minutes, userId);
 
 		await updateDailyRecord(userId, { study_minutes: minutes });
+		await updateStreak(userId);
 
 		const updatedStats = await db.prepare('SELECT * FROM learning_stats WHERE user_id = ?').get(userId);
 		res.json({ code: 0, data: updatedStats, message: '更新成功' });
@@ -227,7 +233,7 @@ router.get('/streak', async (req, res) => {
 		// 获取学习日期列表
 		const studyDateRows = await db.prepare(`
 			SELECT DISTINCT date FROM daily_records
-			WHERE user_id = ? AND (words_learned > 0 OR grammar_practiced > 0 OR phonetic_practiced > 0 OR speak_practiced > 0)
+			WHERE user_id = ? AND (words_learned > 0 OR grammar_practiced > 0 OR phonetic_practiced > 0 OR speak_practiced > 0 OR study_minutes > 0)
 			ORDER BY date DESC
 			LIMIT 30
 		`).all(userId);
@@ -242,7 +248,7 @@ router.get('/streak', async (req, res) => {
 
 // 更新连续学习天数
 async function updateStreak(userId) {
-	const today = new Date().toISOString().split('T')[0];
+	const today = chinaDate();
 	const yesterday = new Date();
 	yesterday.setDate(yesterday.getDate() - 1);
 	const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -285,7 +291,7 @@ async function updateStreak(userId) {
 
 // 更新每日记录
 async function updateDailyRecord(userId, data) {
-	const today = new Date().toISOString().split('T')[0];
+	const today = chinaDate();
 	const existing = await db.prepare('SELECT * FROM daily_records WHERE user_id = ? AND date = ?').get(userId, today);
 
 	if (existing) {

@@ -24,7 +24,7 @@
 			<text class="section-title">本周学习</text>
 			<view class="chart-card">
 				<view class="chart-bars">
-					<view class="chart-bar-item" v-for="(day, index) in weekData" :key="index">
+					<view class="chart-bar-item" v-for="(day, index) in weekData" :key="day.date || index" :class="{ today: day.isToday }">
 						<view class="bar" :style="{ height: day.height + 'rpx' }"></view>
 						<text class="bar-label">{{ day.label }}</text>
 						<text class="bar-value">{{ day.value }}分</text>
@@ -53,7 +53,7 @@
 				</view>
 				<view class="detail-item">
 					<text class="detail-icon">🎯</text>
-					<text class="detail-text">发音准确率</text>
+					<text class="detail-text">练习正确率</text>
 					<text class="detail-value">{{ stats.accuracy }}%</text>
 				</view>
 			</view>
@@ -63,12 +63,15 @@
 			<text class="section-title">学习日历</text>
 			<view class="calendar-card">
 				<view class="calendar-header">
-					<text class="calendar-month">2026年7月</text>
+					<text class="calendar-month">{{ calendarMonth }}</text>
+				</view>
+				<view class="calendar-weekdays">
+					<text v-for="label in ['一','二','三','四','五','六','日']" :key="label">{{ label }}</text>
 				</view>
 				<view class="calendar-grid">
-					<view class="calendar-day" v-for="day in 31" :key="day"
-						:class="{ 'has-study': studyDays.includes(day), 'today': day === today }">
-						<text class="day-text">{{ day }}</text>
+					<view class="calendar-day" v-for="(day, index) in calendarDays" :key="index"
+						:class="{ blank: !day, 'has-study': day && isStudyDay(day), 'today': day && isToday(day) }">
+						<text class="day-text" v-if="day">{{ day }}</text>
 					</view>
 				</view>
 			</view>
@@ -82,8 +85,8 @@ import { getStudyStatistics } from '@/utils/api.js';
 export default {
 	data() {
 		return {
-			today: new Date().getDate(),
-			studyDays: [],
+			currentDate: new Date(),
+			studyDates: [],
 			stats: {
 				totalDays: 0,
 				totalWords: 0,
@@ -96,10 +99,21 @@ export default {
 			weekData: []
 		}
 	},
+	computed: {
+		calendarMonth() { return `${this.currentDate.getFullYear()}年${this.currentDate.getMonth() + 1}月`; },
+		calendarDays() {
+			const year = this.currentDate.getFullYear(); const month = this.currentDate.getMonth();
+			const offset = new Date(year, month, 1).getDay();
+			const count = new Date(year, month + 1, 0).getDate();
+			return [...Array(offset).fill(null), ...Array.from({ length: count }, (_, index) => index + 1)];
+		}
+	},
 	onShow() {
 		this.loadStatistics();
 	},
 	methods: {
+		isToday(day) { const now = new Date(); return now.getFullYear() === this.currentDate.getFullYear() && now.getMonth() === this.currentDate.getMonth() && now.getDate() === day; },
+		isStudyDay(day) { const year = this.currentDate.getFullYear(); const month = this.currentDate.getMonth(); return this.studyDates.some(value => { const date = new Date(value); return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day; }); },
 		async loadStatistics() {
 			try {
 				const statistics = await getStudyStatistics();
@@ -114,9 +128,7 @@ export default {
 					accuracy: statistics.accuracy || 0
 				};
 
-				this.studyDays = statistics.studyDates
-					? statistics.studyDates.map(d => new Date(d).getDate())
-					: [];
+				this.studyDates = statistics.studyDates || [];
 
 				this.weekData = statistics.weekData || [];
 			} catch (error) {
@@ -139,9 +151,7 @@ export default {
 					accuracy: stats.accuracy || 0
 				};
 
-				this.studyDays = streak.studyDates
-					? streak.studyDates.map(d => new Date(d).getDate())
-					: [];
+				this.studyDates = streak.studyDates || streak.study_dates || [];
 			} catch (e) {
 				console.error('读取本地数据失败:', e);
 			}
@@ -237,11 +247,13 @@ export default {
 	flex: 1;
 }
 
+.chart-bar-item.today .bar { background-color: #0D9488; }
+
 .bar {
 	width: 40rpx;
 	background-color: #1F3A5F;
 	border-radius: 10rpx 10rpx 0 0;
-	min-height: 10rpx;
+	min-height: 0;
 }
 
 .bar-label {
@@ -305,6 +317,14 @@ export default {
 	color: #1F3A5F;
 }
 
+.calendar-weekdays {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	margin-bottom: 12rpx;
+	text-align: center;
+	color: #7A7A7A;
+	font-size: 22rpx;
+}
 .calendar-grid {
 	display: flex;
 	flex-wrap: wrap;
@@ -320,6 +340,8 @@ export default {
 	border-radius: 50%;
 	background-color: #F0F0F0;
 }
+
+.calendar-day.blank { background: transparent; }
 
 .calendar-day.has-study {
 	background-color: #1F3A5F;

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
 	<view class="container">
 		<view class="header">
 			<text class="title">单词学习</text>
@@ -9,7 +9,7 @@
 			<view class="stat-item"><text class="stat-number">{{ masteredCount }}</text><text class="stat-label">已掌握</text></view>
 			<view class="stat-item"><text class="stat-number">{{ totalLearned }}</text><text class="stat-label">已学单词</text></view>
 			<view class="stat-item"><text class="stat-number">{{ accuracy }}%</text><text class="stat-label">正确率</text></view>
-			<view class="stat-item"><text class="stat-number wrong-number">{{ wrongCount }}</text><text class="stat-label">错题</text></view>
+			<view class="stat-item wrong-entry" @click="openWrongBook"><text class="stat-number wrong-number">{{ wrongCount }}</text><text class="stat-label">错题</text></view>
 		</view>		<!-- 每日单词类型 -->
 		<view class="section">
 			<text class="section-title">每日单词类型</text>
@@ -187,35 +187,6 @@
 			</view>
 		</view>
 
-		<!-- 记忆卡片（默认模式） -->
-		<view class="section" v-if="!learningMode">
-			<view class="memory-heading">
-				<view><text class="section-title memory-title">记忆卡片</text><text class="memory-desc">先回忆再翻面，选择“记住了”或“还需练习”，系统会安排复习。</text></view>
-				<view class="wrong-book-btn" @click="startWrongBook"><text>错题本 {{ wrongCount }}</text></view>
-			</view>
-			<view class="card-container" v-if="currentWord">
-				<view class="card" @click="flipCard">
-					<view class="card-front" v-if="!showBack">
-						<text class="card-word">{{ currentWord.word }}</text>
-						<text class="card-phonetic">{{ currentWord.phonetic_us }}</text>
-						<text class="card-hint">点击翻转</text>
-					</view>
-					<view class="card-back" v-else>
-						<text class="card-meaning">{{ currentWord.chinese }}</text>
-						<text class="card-example">{{ currentWord.example }}</text>
-						<view class="card-actions">
-							<text class="action-btn know" @click="markKnown">记住了</text>
-							<text class="action-btn unknown" @click="markUnknown">还需练习</text>
-						</view>
-					</view>
-				</view>
-			</view>
-			<view class="empty-state" v-else>
-				<text class="empty-icon">🎉</text>
-				<text class="empty-text">今日学习已完成</text>
-				<text class="empty-hint">明天再来继续学习吧</text>
-			</view>
-		</view>
 
 	</view>
 </template>
@@ -237,6 +208,7 @@ export default {
 			selectedCategory: '名词',
 			wrongCount: 0,
 			wrongModeCounts: { listen: 0, read: 0, write: 0, speak: 0 },
+			pendingWrongMode: '',
 			dailyPlan: 10,
 			showBack: false,
 			currentWordIndex: 0,
@@ -293,16 +265,20 @@ export default {
 			return status?.completed_modes || 0;
 		}
 	},
-	onLoad() {
+	onLoad(options = {}) {
+		this.pendingWrongMode = options.wrongMode || '';
 		this.initRecorder();
 	},
-	onShow() {
-		this.loadWordCounts();
-		this.loadWords();
-		this.loadStats();
-		this.loadWrongCount();
+	async onShow() {
+		await Promise.all([this.loadWordCounts(), this.loadWords(), this.loadStats(), this.loadWrongCount()]);
+		if (this.pendingWrongMode) {
+			const mode = this.pendingWrongMode;
+			this.pendingWrongMode = '';
+			await this.startWrongMode(mode);
+		}
 	},
 	methods: {
+		openWrongBook() { uni.navigateTo({ url: '/pages/mine/wrong-book' }); },
 		initRecorder() {
 			this.recordManager = uni.getRecorderManager();
 			this.recordManager.onStop((res) => {
@@ -807,6 +783,8 @@ export default {
 .sticky-stats .stat-number { display: block; font-size: 30rpx; font-weight: bold; color: #0D9488; }
 .sticky-stats .stat-label { display: block; margin-top: 4rpx; font-size: 21rpx; color: #7A7A7A; }
 .sticky-stats .wrong-number { color: #DC5A5A; }
+.sticky-stats .wrong-entry { cursor: pointer; }
+.sticky-stats .wrong-entry:active { background: #FFF1F1; }
 .memory-heading { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; margin-bottom: 20rpx; }
 .memory-heading > view:first-child { flex: 1; }
 .memory-title { margin-bottom: 6rpx; }

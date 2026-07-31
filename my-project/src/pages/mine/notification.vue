@@ -99,6 +99,7 @@
 </template>
 
 <script>
+import { getSettings, updateSettings } from '@/utils/api.js';
 export default {
 	data() {
 		return {
@@ -112,11 +113,7 @@ export default {
 			doNotDisturb: true,
 			dndStart: '22:00',
 			dndEnd: '07:00',
-			messages: [
-				{ icon: '📢', title: '学习提醒', content: '今天还没有学习哦，快来背单词吧！', time: '2026-07-24 08:00' },
-				{ icon: '🏆', title: '成就解锁', content: '恭喜你解锁"三天连续"徽章！', time: '2026-07-23 20:30' },
-				{ icon: '📚', title: '复习提醒', content: '有15个单词需要复习，不要忘记了！', time: '2026-07-23 14:00' },
-			]
+			messages: []
 		}
 	},
 	methods: {
@@ -124,7 +121,7 @@ export default {
 			this.dailyReminder = e.detail.value;
 			this.saveSettings();
 			if (this.dailyReminder) {
-				uni.showToast({ title: '已开启每日提醒', icon: 'success' });
+				uni.showToast({ title: '提醒偏好已开启', icon: 'success' });
 			} else {
 				uni.showToast({ title: '已关闭每日提醒', icon: 'none' });
 			}
@@ -161,33 +158,36 @@ export default {
 			this.dndEnd = e.detail.value;
 			this.saveSettings();
 		},
-		saveSettings() {
+		async saveSettings() {
 			const settings = {
-				dailyReminder: this.dailyReminder,
-				reminderTime: this.reminderTime,
-				reminderContentIndex: this.reminderContentIndex,
-				wordReminder: this.wordReminder,
-				progressReminder: this.progressReminder,
-				achievementReminder: this.achievementReminder,
-				doNotDisturb: this.doNotDisturb,
-				dndStart: this.dndStart,
-				dndEnd: this.dndEnd
+				dailyReminder: this.dailyReminder, reminderTime: this.reminderTime,
+				reminderContentIndex: this.reminderContentIndex, wordReminder: this.wordReminder,
+				progressReminder: this.progressReminder, achievementReminder: this.achievementReminder,
+				doNotDisturb: this.doNotDisturb, dndStart: this.dndStart, dndEnd: this.dndEnd
 			};
 			uni.setStorageSync('notificationSettings', settings);
+			try {
+				await updateSettings({
+					daily_reminder: this.dailyReminder ? 1 : 0, reminder_time: this.reminderTime,
+					reminder_content: this.reminderContentIndex, word_reminder: this.wordReminder ? 1 : 0,
+					progress_reminder: this.progressReminder ? 1 : 0,
+					achievement_reminder: this.achievementReminder ? 1 : 0,
+					do_not_disturb: this.doNotDisturb ? 1 : 0, dnd_start: this.dndStart, dnd_end: this.dndEnd
+				});
+			} catch (error) { console.error('同步提醒设置失败:', error); }
 		},
-		loadSettings() {
-			const settings = uni.getStorageSync('notificationSettings');
-			if (settings) {
-				this.dailyReminder = settings.dailyReminder !== false;
-				this.reminderTime = settings.reminderTime || '08:00';
-				this.reminderContentIndex = settings.reminderContentIndex || 0;
-				this.wordReminder = settings.wordReminder !== false;
-				this.progressReminder = settings.progressReminder !== false;
-				this.achievementReminder = settings.achievementReminder !== false;
-				this.doNotDisturb = settings.doNotDisturb !== false;
-				this.dndStart = settings.dndStart || '22:00';
-				this.dndEnd = settings.dndEnd || '07:00';
-			}
+		async loadSettings() {
+			let settings = uni.getStorageSync('notificationSettings') || {};
+			try { settings = { ...settings, ...(await getSettings()) }; } catch (error) { console.error('加载提醒设置失败:', error); }
+			this.dailyReminder = Boolean(Number(settings.daily_reminder ?? (settings.dailyReminder !== false)));
+			this.reminderTime = settings.reminder_time || settings.reminderTime || '08:00';
+			this.reminderContentIndex = Number(settings.reminder_content ?? settings.reminderContentIndex ?? 0);
+			this.wordReminder = Boolean(Number(settings.word_reminder ?? (settings.wordReminder !== false)));
+			this.progressReminder = Boolean(Number(settings.progress_reminder ?? (settings.progressReminder !== false)));
+			this.achievementReminder = Boolean(Number(settings.achievement_reminder ?? (settings.achievementReminder !== false)));
+			this.doNotDisturb = Boolean(Number(settings.do_not_disturb ?? (settings.doNotDisturb !== false)));
+			this.dndStart = settings.dnd_start || settings.dndStart || '22:00';
+			this.dndEnd = settings.dnd_end || settings.dndEnd || '07:00';
 		}
 	},
 	onLoad() {

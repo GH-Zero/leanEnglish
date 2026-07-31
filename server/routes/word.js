@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 
@@ -94,7 +94,7 @@ router.post('/status/known', async (req, res) => {
         VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, NULL)
       `).run(userId, word, nextDate.toISOString().split('T')[0], today, mastered, completed.listen ? 1 : 0, completed.read ? 1 : 0, completed.write ? 1 : 0, completed.speak ? 1 : 0);
     }
-
+    await db.prepare('UPDATE word_wrong_records SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND word = ? AND mode = ?').run(userId, word, mode);
     await updateLearningStats(userId, true);
     res.json({ code: 0, data: { mastered, completedModes: Object.values(completed).filter(Boolean).length }, message: mastered ? '四项学习已完成' : '本模块已完成' });
   } catch (error) {
@@ -128,6 +128,11 @@ router.post('/status/unknown', async (req, res) => {
         VALUES (?, ?, 0, 1, ?, ?, 0, 0, 0, 0, 0, ?)
       `).run(userId, word, nextDate.toISOString().split('T')[0], today, mode);
     }
+    await db.prepare(`
+      INSERT INTO word_wrong_records (user_id, word, mode, error_count, active, first_error_date, last_error_date, resolved_at)
+      VALUES (?, ?, ?, 1, 1, ?, ?, NULL)
+      ON DUPLICATE KEY UPDATE error_count = error_count + 1, active = 1, last_error_date = VALUES(last_error_date), resolved_at = NULL, updated_at = CURRENT_TIMESTAMP
+    `).run(userId, word, mode, today, today);
     await updateLearningStats(userId, false);
     res.json({ code: 0, message: '已加入错题本' });
   } catch (error) {
@@ -136,6 +141,26 @@ router.post('/status/unknown', async (req, res) => {
   }
 });
 
+// 从错题本/生词本移除，但保留该词的历史学习记录
+router.post('/status/clear-wrong', async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.body.userId, 10) || 1;
+    const word = String(req.body.word || '').trim();
+    const mode = String(req.body.mode || '').trim();
+    if (!word) return res.status(400).json({ code: 400, message: '缺少单词参数' });
+    if (mode && !MODE_COLUMNS[mode]) return res.status(400).json({ code: 400, message: '错误类型无效' });
+    if (mode) {
+      await db.prepare('UPDATE word_wrong_records SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND word = ? AND mode = ?').run(userId, word, mode);
+    } else {
+      await db.prepare('UPDATE word_wrong_records SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND word = ?').run(userId, word);
+    }
+    await db.prepare('UPDATE word_status SET wrong_mode = NULL, repetition = GREATEST(repetition, 1), updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND word = ?').run(userId, word);
+    res.json({ code: 0, data: true, message: '已移除' });
+  } catch (error) {
+    console.error('移除错题失败:', error);
+    res.status(500).json({ code: 500, message: '服务器错误' });
+  }
+});
 module.exports = router;
 
 

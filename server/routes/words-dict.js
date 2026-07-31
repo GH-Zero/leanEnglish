@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 
@@ -54,7 +54,7 @@ function safeLimit(value, fallback = 20) {
 // 获取单词列表（分页 + 筛选）
 router.get('/list', async (req, res) => {
   try {
-    const { level, page = 1, pageSize = 20, tag, category } = req.query;
+    const { level, page = 1, pageSize = 20, tag, category, keyword } = req.query;
     const safePage = Math.max(Number(page) || 1, 1);
     const safePageSize = safeLimit(pageSize);
     const offset = (safePage - 1) * safePageSize;
@@ -72,6 +72,11 @@ router.get('/list', async (req, res) => {
     if (category) {
       sql += ' AND category = ?';
       params.push(category);
+    }
+    if (keyword && String(keyword).trim()) {
+      const search = '%' + String(keyword).trim() + '%';
+      sql += ' AND (word LIKE ? OR chinese LIKE ?)';
+      params.push(search, search);
     }
 
     const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) AS total');
@@ -95,6 +100,24 @@ router.get('/list', async (req, res) => {
   }
 });
 
+// 每日闯关：优先返回用户已经学习过的单词，不足时再用词库补齐
+router.get('/challenge', async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.query.userId, 10) || 1;
+    const count = safeLimit(req.query.count, 20);
+    const words = await db.prepare(`
+      SELECT w.* FROM words w
+      LEFT JOIN word_status ws ON ws.word = w.word AND ws.user_id = ?
+      ORDER BY CASE WHEN ws.id IS NULL THEN 1 ELSE 0 END, RAND()
+      LIMIT ?
+    `).all(userId, count);
+    const learnedCount = words.filter(word => word.id).length;
+    res.json({ code: 0, data: words, meta: { preferredLearned: true, count: learnedCount } });
+  } catch (error) {
+    console.error('获取闯关单词失败:', error);
+    res.status(500).json({ code: 500, message: '获取失败' });
+  }
+});
 // 随机获取单词
 router.get('/random', async (req, res) => {
   try {
@@ -110,7 +133,7 @@ router.get('/random', async (req, res) => {
       sql += ' AND category = ?';
       params.push(category);
     }
-    sql += ' ORDER BY RAND() LIMIT ?';
+   sql += ' ORDER BY RAND() LIMIT ?';
     const words = await db.prepare(sql).all(...params, count);
     res.json({ code: 0, data: words });
   } catch (error) {
@@ -273,64 +296,47 @@ router.get('/unlearned', async (req, res) => {
   }
 });
 
-// 获取错题本：所有答错或标记为不认识、且尚未掌握的单词
+// 获取错题本：按单词和错误模式独立记录，可累计错误次数
 router.get('/wrong', async (req, res) => {
   try {
     const userId = Number.parseInt(req.query.userId, 10) || 1;
     const limit = safeLimit(req.query.limit, 50);
-    const category = req.query.category;
-    const modeColumns = { listen: 'listen_done', read: 'read_done', write: 'write_done', speak: 'speak_done' };
-    const mode = modeColumns[req.query.mode] ? req.query.mode : null;
-    const categorySql = DAILY_CATEGORIES.includes(category) ? ' AND w.category = ?' : '';
-    const modeSql = mode ? ' AND ws.wrong_mode = ?' : '';
-    const baseParams = DAILY_CATEGORIES.includes(category) ? [userId, category] : [userId];
-    const listParams = mode ? [...baseParams, mode, limit] : [...baseParams, limit];
-    const totalParams = mode ? [...baseParams, mode] : baseParams;
+    const category = DAILY_CATEGORIES.includes(req.query.category) ? req.query.category : null;
+    const validModes = ['listen', 'read', 'write', 'speak'];
+    const mode = validModes.includes(req.query.mode) ? req.query.mode : null;
+    const filters = ['wr.user_id = ?', 'wr.active = 1'];
+    const params = [userId];
+    if (category) { filters.push('w.category = ?'); params.push(category); }
+    if (mode) { filters.push('wr.mode = ?'); params.push(mode); }
+    const where = filters.join(' AND ');
     const words = await db.prepare(`
-      SELECT w.*, ws.last_review_date
-      FROM words w
-      INNER JOIN word_status ws ON ws.word = w.word
-      WHERE ws.user_id = ? AND ws.mastered = 0 AND ws.repetition = 0
-      ${categorySql}${modeSql}
-      ORDER BY ws.updated_at DESC, w.sort_order ASC
+      SELECT w.*, wr.mode AS wrong_mode, wr.error_count, wr.first_error_date, wr.last_error_date
+      FROM word_wrong_records wr
+      INNER JOIN words w ON w.word = wr.word
+      WHERE ${where}
+      ORDER BY wr.last_error_date DESC, wr.updated_at DESC, w.sort_order ASC
       LIMIT ?
-    `).all(...listParams);
+    `).all(...params, limit);
     const totalRow = await db.prepare(`
-      SELECT COUNT(*) AS total
-      FROM words w
-      INNER JOIN word_status ws ON ws.word = w.word
-      WHERE ws.user_id = ? AND ws.mastered = 0 AND ws.repetition = 0
-      ${categorySql}${modeSql}
-    `).get(...totalParams);
-    const modeStats = await db.prepare(`
-      SELECT
-        SUM(CASE WHEN ws.wrong_mode = 'listen' THEN 1 ELSE 0 END) AS listen_count,
-        SUM(CASE WHEN ws.wrong_mode = 'read' THEN 1 ELSE 0 END) AS read_count,
-        SUM(CASE WHEN ws.wrong_mode = 'write' THEN 1 ELSE 0 END) AS write_count,
-        SUM(CASE WHEN ws.wrong_mode = 'speak' THEN 1 ELSE 0 END) AS speak_count
-      FROM words w
-      INNER JOIN word_status ws ON ws.word = w.word
-      WHERE ws.user_id = ? AND ws.mastered = 0 AND ws.repetition = 0
-      ${categorySql}
-    `).get(...totalParams);
-    res.json({
-      code: 0,
-      data: {
-        words,
-        total: Number(totalRow.total || 0),
-        byMode: {
-          listen: Number(modeStats.listen_count || 0),
-          read: Number(modeStats.read_count || 0),
-          write: Number(modeStats.write_count || 0),
-          speak: Number(modeStats.speak_count || 0)
-        }
-      }
-    });
+      SELECT COUNT(*) AS total FROM word_wrong_records wr
+      INNER JOIN words w ON w.word = wr.word WHERE ${where}
+    `).get(...params);
+    const modeRows = await db.prepare(`
+      SELECT wr.mode, COUNT(*) AS count FROM word_wrong_records wr
+      INNER JOIN words w ON w.word = wr.word
+      WHERE wr.user_id = ? AND wr.active = 1 ${category ? 'AND w.category = ?' : ''}
+      GROUP BY wr.mode
+    `).all(...(category ? [userId, category] : [userId]));
+    const byMode = { listen: 0, read: 0, write: 0, speak: 0 };
+    modeRows.forEach(row => { if (row.mode in byMode) byMode[row.mode] = Number(row.count || 0); });
+    res.json({ code: 0, data: { words, total: Number(totalRow?.total || 0), byMode } });
   } catch (error) {
     console.error('获取错题本失败:', error);
     res.status(500).json({ code: 500, message: '获取错题本失败' });
   }
-});router.get('/categories', (req, res) => {
+});
+
+router.get('/categories', (req, res) => {
   const categories = DAILY_CATEGORIES.map((category) => ({
     category,
     count: CATEGORY_COUNTS[category],

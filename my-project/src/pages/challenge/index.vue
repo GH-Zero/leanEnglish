@@ -123,7 +123,8 @@ export default {
 			isCorrect: false,
 			correctCount: 0,
 			completed: false,
-			audioContext: null
+			audioContext: null,
+			audioRequestId: 0
 		}
 	},
 	computed: {
@@ -131,7 +132,8 @@ export default {
 			return this.questions[this.currentIndex] || {};
 		},
 		progressPercent() {
-			return ((this.currentIndex) / this.questions.length) * 100;
+			if (!this.questions.length) return 0;
+			return (this.currentIndex / this.questions.length) * 100;
 		},
 		scoreMessage() {
 			const rate = this.correctCount / this.questions.length;
@@ -149,8 +151,11 @@ export default {
 		this.loadQuestions();
 	},
 	onUnload() {
+		this.audioRequestId++;
 		if (this.audioContext) {
+			this.audioContext.stop();
 			this.audioContext.destroy();
+			this.audioContext = null;
 		}
 	},
 	methods: {
@@ -197,7 +202,7 @@ export default {
 			}
 		},
 		async loadWordQuestions() {
-			const words = await this.request('/words/random?count=20');
+			const words = await this.request('/words/challenge?userId=1&count=20');
 			if (!words || words.length === 0) {
 				uni.showToast({ title: '暂无单词数据', icon: 'none' });
 				return;
@@ -249,23 +254,55 @@ export default {
 		playWord() {
 			const word = this.currentQuestion.word;
 			if (!word) return;
-			if (this.audioContext) {
-				this.audioContext.destroy();
-			}
-			this.audioContext = uni.createInnerAudioContext();
-			this.audioContext.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`;
-			this.audioContext.play();
+			this.playAudioText(word, 1);
 		},
 		playSentence() {
 			// 将句子中的 ___ 替换为正确答案来朗读完整句子
-			const sentence = this.currentQuestion.sentence.replace('___', this.currentQuestion.answer);
-			if (!sentence) return;
-			if (this.audioContext) {
-				this.audioContext.destroy();
+			const question = this.currentQuestion || {};
+			if (!question.sentence) {
+				uni.showToast({ title: '当前题目暂无语音', icon: 'none' });
+				return;
 			}
-			this.audioContext = uni.createInnerAudioContext();
-			this.audioContext.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(sentence)}&type=2`;
-			this.audioContext.play();
+			const sentence = String(question.sentence).replace('___', question.answer || '');
+			this.playAudioText(sentence, 2);
+		},
+		playAudioText(text, type = 2) {
+			const value = String(text || '').trim();
+			if (!value) return;
+			if (this.audioContext) {
+				this.audioContext.stop();
+				this.audioContext.destroy();
+				this.audioContext = null;
+			}
+			const requestId = ++this.audioRequestId;
+			const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(value)}&type=${type}`;
+			uni.downloadFile({
+				url,
+				success: (result) => {
+					if (requestId !== this.audioRequestId) return;
+					if (result.statusCode !== 200 || !result.tempFilePath) {
+						uni.showToast({ title: '语音加载失败', icon: 'none' });
+						return;
+					}
+					const audio = uni.createInnerAudioContext();
+					this.audioContext = audio;
+					audio.autoplay = false;
+					audio.src = result.tempFilePath;
+					audio.onCanplay(() => {
+						if (this.audioContext === audio) audio.play();
+					});
+					audio.onError((error) => {
+						console.error('语音播放失败:', error);
+						if (this.audioContext === audio) this.audioContext = null;
+						audio.destroy();
+						uni.showToast({ title: '语音播放失败', icon: 'none' });
+					});
+				},
+				fail: (error) => {
+					console.error('语音下载失败:', error);
+					uni.showToast({ title: '语音加载失败', icon: 'none' });
+				}
+			});
 		},
 		isCorrectOption(index) {
 			const option = this.currentQuestion.options[index];

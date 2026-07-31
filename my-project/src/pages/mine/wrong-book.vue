@@ -1,249 +1,79 @@
 <template>
-	<view class="container">
+	<view class="page">
 		<view class="header">
 			<text class="title">错题本</text>
-			<text class="subtitle">自动收集发音错误的单词</text>
+			<text class="subtitle">按类型整理错题，针对薄弱项重新练习</text>
 		</view>
 
-		<view class="filter-bar">
-			<view class="filter-item" :class="{ active: currentFilter === 'all' }" @click="setFilter('all')">
-				<text class="filter-text">全部</text>
+		<view class="type-tabs">
+			<view class="type-tab" :class="{ active: errorType === 'word' }" @click="errorType = 'word'">
+				<text>单词错误</text><text class="count">{{ wordItems.length }}</text>
 			</view>
-			<view class="filter-item" :class="{ active: currentFilter === 'phonetic' }" @click="setFilter('phonetic')">
-				<text class="filter-text">发音错误</text>
-			</view>
-			<view class="filter-item" :class="{ active: currentFilter === 'spelling' }" @click="setFilter('spelling')">
-				<text class="filter-text">拼写错误</text>
+			<view class="type-tab" :class="{ active: errorType === 'grammar' }" @click="errorType = 'grammar'">
+				<text>语法错误</text><text class="count">{{ grammarItems.length }}</text>
 			</view>
 		</view>
 
-		<view class="word-list" v-if="wrongWords.length > 0">
-			<view class="word-item" v-for="(word, index) in filteredWords" :key="index">
-				<view class="word-main">
-					<text class="word-english">{{ word.english }}</text>
-					<text class="word-phonetic">{{ word.phonetic }}</text>
+		<template v-if="errorType === 'word'">
+			<scroll-view class="mode-scroll" scroll-x :show-scrollbar="false">
+				<view class="mode-tabs">
+					<view v-for="mode in wordModes" :key="mode.value" class="mode-tab" :class="{ active: wordMode === mode.value }" @click="wordMode = mode.value">{{ mode.label }} {{ modeCount(mode.value) }}</view>
 				</view>
-				<view class="word-meaning">
-					<text class="word-chinese">{{ word.chinese }}</text>
-				</view>
-				<view class="word-error">
-					<text class="error-type">{{ word.errorType === 'phonetic' ? '发音错误' : '拼写错误' }}</text>
-					<text class="error-count">错误{{ word.errorCount }}次</text>
-				</view>
-				<view class="word-actions">
-					<text class="action-btn practice" @click="practiceWord(word)">重新练习</text>
-					<text class="action-btn remove" @click="removeWord(index)">移除</text>
-				</view>
+			</scroll-view>
+			<view v-for="item in filteredWords" :key="item.word + '-' + item.wrong_mode" class="card">
+				<view class="word-line"><text class="word">{{ item.word }}</text><text class="phonetic">{{ item.phonetic_us || item.phonetic_uk }}</text></view>
+				<text class="meaning">{{ item.chinese || '暂无释义' }}</text>
+				<view class="meta"><text class="tag">{{ modeLabel(item.wrong_mode) }}</text><text>错误{{ item.error_count || 1 }}次 · {{ item.last_error_date || '' }}</text></view>
+				<view class="actions"><button class="practice" @click="practiceWord(item)">重新练习</button></view>
 			</view>
-		</view>
+			<view class="empty" v-if="!loading && !filteredWords.length"><text class="empty-icon">🎉</text><text>该类型暂无单词错题</text></view>
+		</template>
 
-		<view class="empty-state" v-else>
-			<text class="empty-icon">🎉</text>
-			<text class="empty-text">暂无错题</text>
-			<text class="empty-sub">继续保持，加油学习！</text>
-		</view>
+		<template v-else>
+			<view v-for="item in grammarItems" :key="item.key" class="card grammar-card">
+				<text class="grammar-title">{{ item.grammarTitle || '语法练习' }}</text>
+				<text class="sentence">{{ item.sentence }}</text>
+				<text class="answer">正确答案：{{ item.answer }}</text>
+				<view class="meta"><text class="tag grammar-tag">语法错误</text><text v-if="item.count > 1">记录{{ item.count }}次</text></view>
+				<view class="actions"><button class="practice" @click="practiceGrammar(item)">重新练习</button></view>
+			</view>
+			<view class="empty" v-if="!grammarItems.length"><text class="empty-icon">🎉</text><text>暂无语法错题</text></view>
+		</template>
 	</view>
 </template>
-
 <script>
+import { getWrongWords } from '@/utils/api.js';
 export default {
-	data() {
-		return {
-			currentFilter: 'all',
-			wrongWords: [
-				{ english: 'beautiful', phonetic: '/ˈbjuːtɪfl/', chinese: '美丽的', errorType: 'phonetic', errorCount: 3 },
-				{ english: 'restaurant', phonetic: '/ˈrestrɒnt/', chinese: '餐厅', errorType: 'spelling', errorCount: 2 },
-				{ english: 'necessary', phonetic: '/ˈnesəsəri/', chinese: '必要的', errorType: 'spelling', errorCount: 4 },
-				{ english: 'environment', phonetic: '/ɪnˈvaɪrənmənt/', chinese: '环境', errorType: 'phonetic', errorCount: 2 },
-			]
-		}
+	data(){return{
+		errorType:'word',wordMode:'all',wordItems:[],grammarItems:[],loading:false,
+		wordModes:[
+			{value:'all',label:'全部'},{value:'listen',label:'听音'},{value:'read',label:'辨义'},
+			{value:'write',label:'拼写'},{value:'speak',label:'发音'}
+		]
+	}},
+	computed:{
+		filteredWords(){return this.wordMode==='all'?this.wordItems:this.wordItems.filter(item=>item.wrong_mode===this.wordMode)}
 	},
-	computed: {
-		filteredWords() {
-			if (this.currentFilter === 'all') return this.wrongWords;
-			return this.wrongWords.filter(w => w.errorType === this.currentFilter);
-		}
-	},
-	methods: {
-		setFilter(filter) {
-			this.currentFilter = filter;
-		},
-		practiceWord(word) {
-			uni.navigateTo({
-				url: `/pages/word/index?practice=${word.english}`
+	onShow(){this.loadData()},
+	methods:{
+		async loadData(){this.loadGrammar();this.loading=true;try{const result=await getWrongWords();this.wordItems=result?.words||[]}catch(error){console.error('加载单词错题失败:',error);this.wordItems=[]}finally{this.loading=false}},
+		loadGrammar(){
+			const source=uni.getStorageSync('grammar_wrong')||[];
+			const grouped=new Map();
+			source.forEach((item,index)=>{
+				const key=String(item.grammarId||item.grammarTitle||'grammar')+'-'+String(item.sentence||index);
+				if(grouped.has(key))grouped.get(key).count++;
+				else grouped.set(key,{...item,key,count:1});
 			});
+			this.grammarItems=[...grouped.values()];
 		},
-		removeWord(index) {
-			uni.showModal({
-				title: '确认移除',
-				content: '确定要将此单词从错题本中移除吗？',
-				success: (res) => {
-					if (res.confirm) {
-						this.wrongWords.splice(index, 1);
-						uni.showToast({ title: '已移除', icon: 'success' });
-					}
-				}
-			});
-		}
+		modeCount(mode){return mode==='all'?this.wordItems.length:this.wordItems.filter(item=>item.wrong_mode===mode).length},
+		modeLabel(mode){return({listen:'听音错误',read:'辨义错误',write:'拼写错误',speak:'发音错误'})[mode]||'单词错误'},
+		practiceWord(item){uni.navigateTo({url:`/pages/mine/wrong-practice?mode=${encodeURIComponent(item.wrong_mode||'read')}&word=${encodeURIComponent(item.word)}`})},
+		practiceGrammar(item){const stage=Number(item.stage||0);const grammarId=Number(item.grammarId||0);uni.navigateTo({url:`/pages/grammar/wrong?stage=${stage}&grammarId=${grammarId}&sentence=${encodeURIComponent(item.sentence||'')}`})}
 	}
-}
+};
 </script>
-
 <style>
-.container {
-	padding: 20rpx;
-	background-color: #F7F5F0;
-	min-height: 100vh;
-}
-
-.header {
-	text-align: center;
-	padding: 40rpx 0;
-}
-
-.title {
-	font-size: 48rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	display: block;
-}
-
-.subtitle {
-	font-size: 28rpx;
-	color: #7A7A7A;
-	display: block;
-	margin-top: 10rpx;
-}
-
-.filter-bar {
-	display: flex;
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	padding: 10rpx;
-	margin-bottom: 20rpx;
-}
-
-.filter-item {
-	flex: 1;
-	text-align: center;
-	padding: 20rpx 0;
-	border-radius: 15rpx;
-}
-
-.filter-item.active {
-	background-color: #1F3A5F;
-}
-
-.filter-text {
-	font-size: 28rpx;
-	color: #333333;
-}
-
-.filter-item.active .filter-text {
-	color: #FFFFFF;
-}
-
-.word-list {
-	margin-top: 20rpx;
-}
-
-.word-item {
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	padding: 30rpx;
-	margin-bottom: 20rpx;
-	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1);
-}
-
-.word-main {
-	display: flex;
-	align-items: baseline;
-	margin-bottom: 10rpx;
-}
-
-.word-english {
-	font-size: 36rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	margin-right: 15rpx;
-}
-
-.word-phonetic {
-	font-size: 26rpx;
-	color: #7A7A7A;
-}
-
-.word-meaning {
-	margin-bottom: 10rpx;
-}
-
-.word-chinese {
-	font-size: 30rpx;
-	color: #333333;
-}
-
-.word-error {
-	display: flex;
-	justify-content: space-between;
-	margin-bottom: 15rpx;
-}
-
-.error-type {
-	font-size: 24rpx;
-	color: #E74C3C;
-	background-color: #FDEDEC;
-	padding: 5rpx 15rpx;
-	border-radius: 10rpx;
-}
-
-.error-count {
-	font-size: 24rpx;
-	color: #7A7A7A;
-}
-
-.word-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 20rpx;
-}
-
-.action-btn {
-	font-size: 26rpx;
-	padding: 10rpx 25rpx;
-	border-radius: 15rpx;
-}
-
-.action-btn.practice {
-	background-color: #1F3A5F;
-	color: #FFFFFF;
-}
-
-.action-btn.remove {
-	background-color: #F0F0F0;
-	color: #7A7A7A;
-}
-
-.empty-state {
-	text-align: center;
-	padding: 100rpx 0;
-}
-
-.empty-icon {
-	font-size: 120rpx;
-	display: block;
-	margin-bottom: 20rpx;
-}
-
-.empty-text {
-	font-size: 32rpx;
-	color: #333333;
-	display: block;
-}
-
-.empty-sub {
-	font-size: 26rpx;
-	color: #7A7A7A;
-	display: block;
-	margin-top: 10rpx;
-}
+.page{min-height:100vh;background:#f7f5f0;padding:24rpx;box-sizing:border-box}.header{text-align:center;padding:22rpx 0 28rpx}.title{display:block;font-size:44rpx;font-weight:700;color:#1f3a5f}.subtitle{display:block;margin-top:10rpx;color:#8a8a8a;font-size:25rpx}.type-tabs{display:flex;background:#fff;padding:8rpx;border-radius:18rpx;margin-bottom:18rpx}.type-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:10rpx;padding:21rpx 10rpx;border-radius:13rpx;color:#555;font-size:29rpx}.type-tab.active{background:#1f3a5f;color:#fff}.count{min-width:34rpx;height:34rpx;line-height:34rpx;text-align:center;border-radius:18rpx;background:#eef2f7;color:#1f3a5f;font-size:21rpx}.type-tab.active .count{background:rgba(255,255,255,.2);color:#fff}.mode-scroll{white-space:nowrap;margin-bottom:18rpx}.mode-tabs{display:inline-flex;gap:12rpx;padding:2rpx}.mode-tab{padding:15rpx 24rpx;border-radius:28rpx;background:#fff;color:#666;font-size:24rpx}.mode-tab.active{background:#0d9488;color:#fff}.card{background:#fff;border-radius:18rpx;padding:27rpx;margin-bottom:18rpx;box-shadow:0 4rpx 14rpx rgba(31,58,95,.07)}.word-line{display:flex;align-items:baseline;gap:12rpx}.word{font-size:36rpx;font-weight:700;color:#1f3a5f}.phonetic{color:#888;font-size:24rpx}.meaning{display:block;margin:10rpx 0 15rpx;color:#444;font-size:27rpx}.meta{display:flex;justify-content:space-between;align-items:center;color:#888;font-size:22rpx}.tag{padding:5rpx 13rpx;border-radius:9rpx;background:#fff0f0;color:#dc4c4c}.grammar-tag{background:#fff7e8;color:#b66b00}.actions{display:flex;justify-content:flex-end;margin-top:16rpx}.practice{margin:0;padding:0 28rpx;height:60rpx;line-height:60rpx;border-radius:12rpx;background:#1f3a5f;color:#fff;font-size:25rpx}.grammar-title{display:block;font-size:30rpx;font-weight:700;color:#1f3a5f}.sentence{display:block;margin:16rpx 0;color:#333;font-size:28rpx}.answer{display:block;color:#0d9488;font-size:24rpx;margin-bottom:14rpx}.empty{text-align:center;padding:150rpx 0;color:#888}.empty-icon{display:block;font-size:72rpx;margin-bottom:18rpx}
 </style>

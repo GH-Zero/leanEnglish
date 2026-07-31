@@ -1,225 +1,74 @@
 <template>
-	<view class="container">
-		<view class="header">
-			<text class="title">生词本</text>
-			<text class="subtitle">收藏不认识的单词</text>
+	<view class="page">
+		<view class="header"><text class="title">单词词典</text><text class="subtitle">支持英文、中文释义搜索</text></view>
+		<view class="search-box">
+			<text class="search-icon">⌕</text>
+			<input class="search-input" v-model="keyword" placeholder="输入英文单词或中文释义" confirm-type="search" @input="scheduleSearch" @confirm="search" />
+			<text class="clear" v-if="keyword" @click="clearSearch">×</text>
 		</view>
-
-		<view class="search-bar">
-			<input class="search-input" placeholder="搜索单词..." v-model="searchText" @input="searchWords" />
-		</view>
-
-		<view class="word-list" v-if="filteredWords.length > 0">
-			<view class="word-item" v-for="(word, index) in filteredWords" :key="index">
-				<view class="word-main">
-					<text class="word-english">{{ word.english }}</text>
-					<text class="word-phonetic">{{ word.phonetic }}</text>
-				</view>
-				<view class="word-meaning">
-					<text class="word-chinese">{{ word.chinese }}</text>
-				</view>
-				<view class="word-source">
-					<text class="source-text">来源：{{ word.source }}</text>
-					<text class="add-time">{{ word.addTime }}</text>
-				</view>
-				<view class="word-actions">
-					<text class="action-btn listen" @click="listenWord(word)">🔊</text>
-					<text class="action-btn remove" @click="removeWord(index)">移除</text>
-				</view>
+		<view class="summary" v-if="hasSearched && !loading">找到 {{ total }} 个结果</view>
+		<scroll-view class="results-scroll" scroll-y :show-scrollbar="false">
+			<view v-for="item in words" :key="item.id" class="word-card">
+			<view class="word-head">
+				<view><text class="word tappable" @click="play(item.word,1,'word-'+item.id)">{{ item.word }} {{ playingKey === 'word-'+item.id ? '🔊' : '' }}</text><text class="level">{{ levelLabel(item.level) }}</text></view>
+				<view class="audio-actions"><text class="audio" @click="play(item.word,1,'us-'+item.id)">{{ playingKey === 'us-'+item.id ? '播放中' : 'US' }}</text><text class="audio" @click="play(item.word,2,'uk-'+item.id)">{{ playingKey === 'uk-'+item.id ? '播放中' : 'GB' }}</text></view>
 			</view>
+			<view class="phonetics"><text v-if="item.phonetic_us">美 /{{ trimSlash(item.phonetic_us) }}/</text><text v-if="item.phonetic_uk">英 /{{ trimSlash(item.phonetic_uk) }}/</text></view>
+			<text class="meaning">{{ item.chinese || '暂无中文释义' }}</text>
+			<view class="example" v-if="item.example"><view class="example-head"><text class="example-label">例句</text><text class="example-play" @click="play(item.example,2,'example-'+item.id)">{{ playingKey === 'example-'+item.id ? '正在朗读…' : '🔊 朗读例句' }}</text></view><text class="tappable" @click="play(item.example,2,'example-'+item.id)">{{ item.example }}</text></view>
+			<view class="tags"><text v-if="item.category">{{ item.category }}</text><text v-if="item.tag">{{ item.tag }}</text></view>
 		</view>
-
-		<view class="empty-state" v-else>
-			<text class="empty-icon">📖</text>
-			<text class="empty-text">暂无收藏单词</text>
-			<text class="empty-sub">在学习过程中点击"收藏"添加单词</text>
-		</view>
+		<view class="state" v-if="loading">正在查询词典...</view>
+		<view class="state" v-else-if="hasSearched && !words.length"><text class="state-icon">🔍</text><text>没有找到相关单词</text><text class="state-hint">试试英文原形或更简短的中文关键词</text></view>
+		<button class="more" v-if="!loading && words.length < total" @click="loadMore">加载更多</button>
+		<view class="scroll-bottom"></view>
+		</scroll-view>
 	</view>
 </template>
-
 <script>
+import { BASE_URL } from '@/utils/api.js';
 export default {
-	data() {
-		return {
-			searchText: '',
-			words: [
-				{ english: 'ubiquitous', phonetic: '/juːˈbɪkwɪtəs/', chinese: '无处不在的', source: '单词学习', addTime: '2026-07-24' },
-				{ english: 'serendipity', phonetic: '/ˌserənˈdɪpəti/', chinese: '意外发现的美好事物', source: '阅读材料', addTime: '2026-07-23' },
-				{ english: 'ephemeral', phonetic: '/ɪˈfemərəl/', chinese: '短暂的', source: '单词学习', addTime: '2026-07-22' },
-			]
-		}
-	},
-	computed: {
-		filteredWords() {
-			if (!this.searchText) return this.words;
-			return this.words.filter(w => 
-				w.english.toLowerCase().includes(this.searchText.toLowerCase()) ||
-				w.chinese.includes(this.searchText)
-			);
-		}
-	},
-	methods: {
-		searchWords() {
-			// 搜索逻辑已在 computed 中处理
+	data(){return{keyword:'',words:[],total:0,page:1,pageSize:20,loading:false,hasSearched:false,timer:null,requestId:0,audio:null,playingKey:''}},
+	onLoad(){this.search()},
+	onUnload(){if(this.timer)clearTimeout(this.timer);if(this.audio){this.audio.stop();this.audio.destroy()}},
+	methods:{
+		scheduleSearch(){if(this.timer)clearTimeout(this.timer);if(!this.keyword.trim())return this.resetSearch();this.timer=setTimeout(()=>this.search(),350)},
+		clearSearch(){this.keyword='';this.resetSearch()},
+		resetSearch(){if(this.timer)clearTimeout(this.timer);this.requestId++;this.words=[];this.total=0;this.page=1;this.loading=false;this.hasSearched=false},
+		async search(){if(!this.keyword.trim())return this.resetSearch();this.page=1;this.words=[];this.hasSearched=true;await this.fetchWords(false)},
+		async loadMore(){this.page++;await this.fetchWords(true)},
+		fetchWords(append){
+			const requestId=++this.requestId;this.loading=true;
+			return new Promise(resolve=>uni.request({
+				url:BASE_URL+'/words/list',
+				data:{keyword:this.keyword.trim(),page:this.page,pageSize:this.pageSize},
+				success:response=>{
+					if(requestId!==this.requestId)return resolve();
+					if(response.statusCode===200&&response.data.code===0){const data=response.data.data||{};this.words=append?[...this.words,...(data.list||[])]:data.list||[];this.total=Number(data.total||0)}
+					else uni.showToast({title:'词典查询失败',icon:'none'});
+					resolve();
+				},
+				fail:error=>{if(requestId===this.requestId){console.error('词典查询失败:',error);uni.showToast({title:'无法连接词典服务',icon:'none'})}resolve()},
+				complete:()=>{if(requestId===this.requestId)this.loading=false}
+			}));
 		},
-		listenWord(word) {
-			// 播放发音
-			const audio = uni.createInnerAudioContext();
-			audio.src = `https://dict.youdao.com/dictvoice?audio=${word.english}&type=1`;
-			audio.play();
-		},
-		removeWord(index) {
-			uni.showModal({
-				title: '确认移除',
-				content: '确定要将此单词从生词本中移除吗？',
-				success: (res) => {
-					if (res.confirm) {
-						this.words.splice(index, 1);
-						uni.showToast({ title: '已移除', icon: 'success' });
-					}
-				}
-			});
+		trimSlash(value){return String(value||'').replace(/^\/+|\/+$/g,'')},
+		levelLabel(level){return ['入门','初级','中级','高级'][Number(level)]||'通用'},
+		play(text,type,key){
+			const value=String(text||'').trim();if(!value)return;
+			if(this.audio){this.audio.stop();this.audio.destroy();this.audio=null}
+			this.playingKey=key||value;
+			const url='https://dict.youdao.com/dictvoice?audio='+encodeURIComponent(value)+'&type='+type;
+			uni.downloadFile({url,success:result=>{
+				if(result.statusCode!==200||!result.tempFilePath){this.playingKey='';return uni.showToast({title:'语音加载失败',icon:'none'})}
+				const audio=uni.createInnerAudioContext();this.audio=audio;audio.src=result.tempFilePath;
+				audio.onCanplay(()=>audio.play());audio.onEnded(()=>{if(this.audio===audio)this.audio=null;this.playingKey='';audio.destroy()});
+				audio.onError(()=>{if(this.audio===audio)this.audio=null;this.playingKey='';audio.destroy();uni.showToast({title:'语音播放失败',icon:'none'})});
+			},fail:()=>{this.playingKey='';uni.showToast({title:'语音加载失败',icon:'none'})}});
 		}
 	}
-}
+};
 </script>
-
 <style>
-.container {
-	padding: 20rpx;
-	background-color: #F7F5F0;
-	min-height: 100vh;
-}
-
-.header {
-	text-align: center;
-	padding: 40rpx 0;
-}
-
-.title {
-	font-size: 48rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	display: block;
-}
-
-.subtitle {
-	font-size: 28rpx;
-	color: #7A7A7A;
-	display: block;
-	margin-top: 10rpx;
-}
-
-.search-bar {
-	margin-bottom: 20rpx;
-}
-
-.search-input {
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	padding: 20rpx 30rpx;
-	font-size: 30rpx;
-	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1);
-}
-
-.word-list {
-	margin-top: 20rpx;
-}
-
-.word-item {
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	padding: 30rpx;
-	margin-bottom: 20rpx;
-	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1);
-}
-
-.word-main {
-	display: flex;
-	align-items: baseline;
-	margin-bottom: 10rpx;
-}
-
-.word-english {
-	font-size: 36rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	margin-right: 15rpx;
-}
-
-.word-phonetic {
-	font-size: 26rpx;
-	color: #7A7A7A;
-}
-
-.word-meaning {
-	margin-bottom: 10rpx;
-}
-
-.word-chinese {
-	font-size: 30rpx;
-	color: #333333;
-}
-
-.word-source {
-	display: flex;
-	justify-content: space-between;
-	margin-bottom: 15rpx;
-}
-
-.source-text {
-	font-size: 24rpx;
-	color: #7A7A7A;
-}
-
-.add-time {
-	font-size: 24rpx;
-	color: #7A7A7A;
-}
-
-.word-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 20rpx;
-}
-
-.action-btn {
-	font-size: 32rpx;
-	padding: 10rpx 25rpx;
-	border-radius: 15rpx;
-}
-
-.action-btn.listen {
-	background-color: #E8F4FC;
-	color: #1F3A5F;
-}
-
-.action-btn.remove {
-	background-color: #F0F0F0;
-	color: #7A7A7A;
-}
-
-.empty-state {
-	text-align: center;
-	padding: 100rpx 0;
-}
-
-.empty-icon {
-	font-size: 120rpx;
-	display: block;
-	margin-bottom: 20rpx;
-}
-
-.empty-text {
-	font-size: 32rpx;
-	color: #333333;
-	display: block;
-}
-
-.empty-sub {
-	font-size: 26rpx;
-	color: #7A7A7A;
-	display: block;
-	margin-top: 10rpx;
-}
+.page{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:#f7f5f0;padding:24rpx;box-sizing:border-box}.header{flex-shrink:0;text-align:center;padding:25rpx 0}.title{display:block;font-size:44rpx;font-weight:700;color:#1f3a5f}.subtitle{display:block;color:#888;font-size:25rpx;margin-top:8rpx}.search-box{flex-shrink:0;display:flex;align-items:center;background:#fff;border-radius:18rpx;padding:0 24rpx;box-shadow:0 4rpx 14rpx rgba(31,58,95,.08)}.search-icon{font-size:36rpx;color:#888;margin-right:12rpx}.search-input{flex:1;height:90rpx;font-size:28rpx}.clear{font-size:38rpx;color:#999;padding:10rpx}.summary{flex-shrink:0;font-size:24rpx;color:#888;margin:24rpx 6rpx 14rpx}.results-scroll{flex:1;height:0;min-height:0;box-sizing:border-box}.scroll-bottom{height:calc(30rpx + env(safe-area-inset-bottom))}.word-card{background:#fff;border-radius:18rpx;padding:28rpx;margin-bottom:18rpx;box-shadow:0 4rpx 14rpx rgba(31,58,95,.07)}.word-head{display:flex;justify-content:space-between;align-items:center}.word{font-size:38rpx;font-weight:700;color:#1f3a5f}.tappable{cursor:pointer}.level{font-size:20rpx;color:#0d9488;background:#edf9f7;border-radius:8rpx;padding:5rpx 10rpx;margin-left:12rpx}.audio-actions{display:flex;gap:12rpx}.audio{background:#eef5fb;border-radius:12rpx;padding:12rpx 16rpx;font-size:27rpx}.phonetics{display:flex;gap:22rpx;margin:12rpx 0;color:#888;font-size:23rpx}.meaning{display:block;color:#333;font-size:28rpx;line-height:1.6}.example{margin-top:18rpx;padding:17rpx;background:#f7fafc;border-radius:12rpx;color:#56616e;font-size:25rpx;line-height:1.5}.example-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8rpx}.example-label{display:block;color:#0d9488;font-weight:700}.example-play{color:#1f3a5f;font-size:22rpx;background:#e8eef6;padding:7rpx 12rpx;border-radius:10rpx}.tags{display:flex;gap:10rpx;margin-top:16rpx}.tags text{font-size:20rpx;color:#777;background:#f2f2f2;border-radius:8rpx;padding:5rpx 10rpx}.state{text-align:center;padding:150rpx 20rpx;color:#888}.state text{display:block}.state-icon{font-size:70rpx;margin-bottom:18rpx}.state-hint{font-size:23rpx;margin-top:10rpx}.more{margin:25rpx 0;border-radius:14rpx;background:#fff;color:#1f3a5f}
 </style>

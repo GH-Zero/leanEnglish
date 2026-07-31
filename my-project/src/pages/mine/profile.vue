@@ -90,10 +90,11 @@
 </template>
 
 <script>
+import { getUserProfile, updateUserProfile } from '@/utils/api.js';
 export default {
 	data() {
 		return {
-			avatar: '/static/default-avatar.png',
+			avatar: '/static/logo.png',
 			nickname: '英语学习者',
 			goalOptions: ['日常交流', '考试备考', '工作需要', '兴趣爱好'],
 			goalIndex: 0,
@@ -133,28 +134,43 @@ export default {
 			this.focusIndex = e.detail.value;
 			this.saveProfile();
 		},
-		saveProfile() {
+		async saveProfile() {
 			const profile = {
 				avatar: this.avatar,
-				nickname: this.nickname,
-				goalIndex: this.goalIndex,
-				levelIndex: this.levelIndex,
-				durationIndex: this.durationIndex,
-				focusIndex: this.focusIndex
+				nickname: this.nickname.trim() || '英语学习者',
+				goalIndex: Number(this.goalIndex),
+				levelIndex: Number(this.levelIndex),
+				durationIndex: Number(this.durationIndex),
+				focusIndex: Number(this.focusIndex)
 			};
 			uni.setStorageSync('userProfile', profile);
-			uni.showToast({ title: '已保存', icon: 'success' });
-		},
-		loadProfile() {
-			const profile = uni.getStorageSync('userProfile');
-			if (profile) {
-				this.avatar = profile.avatar || '/static/default-avatar.png';
-				this.nickname = profile.nickname || '英语学习者';
-				this.goalIndex = profile.goalIndex || 0;
-				this.levelIndex = profile.levelIndex || 0;
-				this.durationIndex = profile.durationIndex || 1;
-				this.focusIndex = profile.focusIndex || 0;
+			try {
+				const durations = [15, 30, 45, 60];
+				const updated = await updateUserProfile({
+					nickname: profile.nickname,
+					avatar: profile.avatar,
+					goal: profile.goalIndex,
+					level: profile.levelIndex,
+					study_duration: durations[profile.durationIndex] || 30,
+					focus: profile.focusIndex
+				});
+				uni.setStorageSync('userProfile', { ...profile, ...updated, levelIndex: Number(updated.level ?? profile.levelIndex) });
+				uni.showToast({ title: '已保存', icon: 'success' });
+			} catch (error) {
+				console.error('保存个人信息失败:', error);
+				uni.showToast({ title: '已保存到本机，云端同步失败', icon: 'none' });
 			}
+		},
+		async loadProfile() {
+			let profile = uni.getStorageSync('userProfile') || {};
+			try { profile = { ...profile, ...(await getUserProfile()) }; } catch (error) { console.error('加载个人信息失败:', error); }
+			this.avatar = profile.avatar || '/static/logo.png';
+			this.nickname = profile.nickname || '英语学习者';
+			this.goalIndex = Number(profile.goal ?? profile.goalIndex ?? 0);
+			this.levelIndex = Number(profile.level ?? profile.levelIndex ?? 0);
+			const duration = Number(profile.study_duration || 30);
+			this.durationIndex = Math.max(0, [15, 30, 45, 60].indexOf(duration));
+			this.focusIndex = Number(profile.focus ?? profile.focusIndex ?? 0);
 		},
 		exportData() {
 			uni.showModal({

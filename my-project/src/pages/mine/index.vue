@@ -2,13 +2,15 @@
 	<view class="container">
 		<view class="header">
 			<view class="user-info">
-				<image class="avatar" src="/static/default-avatar.png" mode="aspectFill"></image>
+				<image class="avatar" :src="userProfile.avatar || '/static/logo.png'" mode="aspectFill"></image>
 				<view class="user-details">
-					<text class="username">英语学习者</text>
-					<text class="user-level">零基础入门</text>
+					<text class="username">{{ userProfile.nickname || '英语学习者' }}</text>
+					<text class="user-level">{{ levelOptions[Number(userProfile.level ?? userProfile.levelIndex ?? 0)] || levelOptions[0] }}</text>
 				</view>
 			</view>
 		</view>
+		<text class="load-tip" v-if="loading">数据加载中...</text>
+		<text class="load-tip error" v-else-if="loadError" @click="loadData">部分数据加载失败，当前显示可用数据，点击重试</text>
 		
 		<view class="stats-card">
 			<view class="stat-item">
@@ -34,8 +36,8 @@
 					<text class="tool-arrow">›</text>
 				</view>
 				<view class="tool-item" @click="goToPage('/pages/mine/word-book')">
-					<text class="tool-icon">📚</text>
-					<text class="tool-text">生词本</text>
+					<text class="tool-icon">🔎</text>
+					<text class="tool-text">单词词典</text>
 					<text class="tool-arrow">›</text>
 				</view>
 				<view class="tool-item" @click="goToPage('/pages/mine/statistics')">
@@ -80,15 +82,18 @@ import { getLearningStats, getStreakData, getUserProfile } from '@/utils/api.js'
 export default {
 	data() {
 		return {
+			loading: false,
+			loadError: false,
 			stats: {
 				streakDays: 0,
 				totalWordsLearned: 0,
 				totalStudyMinutes: 0
 			},
-			studyHours: '0',
+			studyHours: '0.0',
 			userProfile: {
 				nickname: '英语学习者',
-				levelIndex: 0
+				avatar: '/static/logo.png',
+				level: 0
 			},
 			levelOptions: ['零基础入门', '初级水平', '中级水平', '高级水平']
 		}
@@ -98,25 +103,31 @@ export default {
 	},
 	methods: {
 		async loadData() {
-			try {
-				const [learningStats, streak, profile] = await Promise.all([
-					getLearningStats(),
-					getStreakData(),
-					getUserProfile()
-				]);
-
-				this.stats = {
-					streakDays: streak ? streak.current_streak : 0,
-					totalWordsLearned: learningStats ? learningStats.total_words_learned : 0,
-					totalStudyMinutes: learningStats ? learningStats.total_study_minutes : 0
-				};
-
-				this.studyHours = (this.stats.totalStudyMinutes / 60).toFixed(1);
-				this.userProfile = profile || { nickname: '英语学习者', levelIndex: 0 };
-			} catch (error) {
-				console.error('加载数据失败:', error);
-				this.loadLocalData();
-			}
+			this.loading = true;
+			this.loadError = false;
+			const [statsResult, streakResult, profileResult] = await Promise.allSettled([
+				getLearningStats(), getStreakData(), getUserProfile()
+			]);
+			const local = this.getLocalData();
+			const learningStats = statsResult.status === 'fulfilled' ? statsResult.value : local.stats;
+			const streak = streakResult.status === 'fulfilled' ? streakResult.value : local.streak;
+			const profile = profileResult.status === 'fulfilled' ? profileResult.value : local.profile;
+			this.loadError = [statsResult, streakResult, profileResult].some(item => item.status === 'rejected');
+			this.stats = {
+				streakDays: Number(streak?.current_streak ?? streak?.currentStreak ?? 0),
+				totalWordsLearned: Number(learningStats?.total_words_learned ?? learningStats?.totalWordsLearned ?? 0),
+				totalStudyMinutes: Number(learningStats?.total_study_minutes ?? learningStats?.totalStudyMinutes ?? 0)
+			};
+			this.studyHours = (this.stats.totalStudyMinutes / 60).toFixed(1);
+			this.userProfile = { nickname: '英语学习者', avatar: '/static/logo.png', level: 0, ...(profile || {}) };
+			this.loading = false;
+		},
+		getLocalData() {
+			return {
+				stats: uni.getStorageSync('learningStats') || {},
+				streak: uni.getStorageSync('streakData') || {},
+				profile: uni.getStorageSync('userProfile') || {}
+			};
 		},
 		loadLocalData() {
 			try {
@@ -155,9 +166,14 @@ export default {
 <style>
 .container {
 	padding: 20rpx;
+	padding-bottom: calc(140rpx + env(safe-area-inset-bottom));
+	box-sizing: border-box;
 	background-color: #F7F5F0;
 	min-height: 100vh;
 }
+
+.load-tip { display: block; text-align: center; color: #7A7A7A; font-size: 24rpx; margin: 12rpx 0; }
+.load-tip.error { color: #C24141; }
 
 .header {
 	background-color: #1F3A5F;

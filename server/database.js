@@ -1,4 +1,4 @@
-﻿const mysql = require('mysql2/promise');
+const mysql = require('mysql2/promise');
 
 const databaseName = process.env.DB_NAME || 'english_learning';
 if (!/^[a-zA-Z0-9_]+$/.test(databaseName)) {
@@ -105,7 +105,22 @@ const schemaStatements = [
     UNIQUE KEY unique_user_word (user_id, word),
     CONSTRAINT fk_word_status_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS grammar_progress (
+  `CREATE TABLE IF NOT EXISTS word_wrong_records (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    word VARCHAR(100) NOT NULL,
+    mode VARCHAR(20) NOT NULL,
+    error_count INT DEFAULT 1,
+    active TINYINT(1) DEFAULT 1,
+    first_error_date DATE NOT NULL,
+    last_error_date DATE NOT NULL,
+    resolved_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_user_word_mode (user_id, word, mode),
+    INDEX idx_wrong_user_active_mode (user_id, active, mode),
+    CONSTRAINT fk_wrong_records_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,  `CREATE TABLE IF NOT EXISTS grammar_progress (
     id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
     grammar_id INT NOT NULL,
@@ -296,6 +311,12 @@ async function initDatabase() {
   for (const statement of schemaStatements) {
     await pool.query(statement);
   }
+  // 兼容旧版 wrong_mode：每条旧错题只迁移一次，初始错误次数为 1。
+  await pool.query(`
+    INSERT IGNORE INTO word_wrong_records (user_id, word, mode, error_count, active, first_error_date, last_error_date)
+    SELECT user_id, word, wrong_mode, 1, 1, COALESCE(last_review_date, CURDATE()), COALESCE(last_review_date, CURDATE())
+    FROM word_status WHERE wrong_mode IS NOT NULL AND wrong_mode <> ''
+  `);
   await ensureWordSchema();
   await ensureWordStatusSchema();
 

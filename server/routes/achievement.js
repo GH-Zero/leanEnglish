@@ -16,6 +16,8 @@ router.get('/', async (req, res) => {
 		const totalSpeak = stats ? stats.total_speak_practice : 0;
 		const accuracy = stats ? stats.accuracy : 0;
 		const currentStreak = streak ? streak.current_streak : 0;
+		const dialogueRow = await db.prepare('SELECT COUNT(*) AS count FROM dialogue_history WHERE user_id = ?').get(userId);
+		const totalDialogues = Number(dialogueRow?.count || 0);
 		const maxStreak = streak ? streak.max_streak : 0;
 
 		// 学习成就
@@ -107,7 +109,7 @@ router.get('/', async (req, res) => {
 				id: 'dialogue_master',
 				name: '对话达人',
 				description: '完成20次AI对话',
-				unlocked: totalSpeak >= 20,
+				unlocked: totalDialogues >= 20,
 				icon: '💬'
 			},
 			{

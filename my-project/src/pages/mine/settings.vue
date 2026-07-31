@@ -96,6 +96,7 @@
 </template>
 
 <script>
+import { getSettings, updateSettings } from '@/utils/api.js';
 export default {
 	data() {
 		return {
@@ -163,34 +164,40 @@ export default {
 						uni.removeStorageSync('wordStatus');
 						uni.removeStorageSync('grammarProgress');
 						uni.removeStorageSync('speakHistory');
-						uni.showToast({ title: '已重置', icon: 'success' });
+						uni.showToast({ title: '本机缓存已重置，云端进度保留', icon: 'none' });
 					}
 				}
 			});
 		},
-		saveSettings() {
-			const settings = {
-				dailyNewWords: this.dailyNewWords,
-				dailyReviewWords: this.dailyReviewWords,
-				difficultyIndex: this.difficultyIndex,
-				accentIndex: this.accentIndex,
-				autoPlay: this.autoPlay,
-				darkMode: this.darkMode,
-				fontSizeIndex: this.fontSizeIndex
+		async saveSettings() {
+			const local = {
+				dailyNewWords: this.dailyNewWords, dailyReviewWords: this.dailyReviewWords,
+				difficultyIndex: this.difficultyIndex, accentIndex: this.accentIndex,
+				autoPlay: this.autoPlay, darkMode: this.darkMode, fontSizeIndex: this.fontSizeIndex
 			};
-			uni.setStorageSync('learningSettings', settings);
-		},
-		loadSettings() {
-			const settings = uni.getStorageSync('learningSettings');
-			if (settings) {
-				this.dailyNewWords = settings.dailyNewWords || 20;
-				this.dailyReviewWords = settings.dailyReviewWords || 50;
-				this.difficultyIndex = settings.difficultyIndex || 1;
-				this.accentIndex = settings.accentIndex || 0;
-				this.autoPlay = settings.autoPlay !== false;
-				this.darkMode = settings.darkMode || false;
-				this.fontSizeIndex = settings.fontSizeIndex || 1;
+			uni.setStorageSync('learningSettings', local);
+			try {
+				await updateSettings({
+					daily_new_words: this.dailyNewWords, daily_review_words: this.dailyReviewWords,
+					difficulty: this.difficultyIndex, accent: this.accentIndex,
+					auto_play: this.autoPlay ? 1 : 0, dark_mode: this.darkMode ? 1 : 0,
+					font_size: this.fontSizeIndex
+				});
+			} catch (error) {
+				console.error('同步学习设置失败:', error);
+				uni.showToast({ title: '设置已保存到本机', icon: 'none' });
 			}
+		},
+		async loadSettings() {
+			let settings = uni.getStorageSync('learningSettings') || {};
+			try { settings = { ...settings, ...(await getSettings()) }; } catch (error) { console.error('加载学习设置失败:', error); }
+			this.dailyNewWords = Number(settings.daily_new_words ?? settings.dailyNewWords ?? 20);
+			this.dailyReviewWords = Number(settings.daily_review_words ?? settings.dailyReviewWords ?? 50);
+			this.difficultyIndex = Number(settings.difficulty ?? settings.difficultyIndex ?? 1);
+			this.accentIndex = Number(settings.accent ?? settings.accentIndex ?? 0);
+			this.autoPlay = Boolean(Number(settings.auto_play ?? (settings.autoPlay !== false)));
+			this.darkMode = Boolean(Number(settings.dark_mode ?? settings.darkMode ?? 0));
+			this.fontSizeIndex = Number(settings.font_size ?? settings.fontSizeIndex ?? 1);
 		}
 	},
 	onLoad() {

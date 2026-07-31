@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page">
     <view v-if="loading" class="loading">加载练习中…</view>
     <template v-else-if="grammar.id">
@@ -52,7 +52,9 @@ export default {
       this.loading = true;
       try {
         const response = await new Promise((resolve, reject) => uni.request({ url: `${BASE_URL}/grammar-point/detail/${this.grammarId}`, success: r => r.statusCode === 200 && r.data.code === 0 ? resolve(r.data.data) : reject(), fail: reject }));
-        response.examples = Array.isArray(response.examples) ? response.examples : [];
+        const baseExamples = Array.isArray(response.examples) ? response.examples : [];
+        const questionExamples = (response.questions || []).map(question => String(question.sentence || '').replace('___', question.answer || '')).filter(Boolean);
+        response.examples = [...new Set([...baseExamples, ...questionExamples])].slice(0, 6);
         this.grammar = response;
         this.questions = this.createFiveQuestions(response.questions || []);
       } catch (_) { uni.showToast({ title: '加载练习失败', icon: 'none' }); }

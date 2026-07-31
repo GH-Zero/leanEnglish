@@ -35,7 +35,10 @@
 		<view class="section list-section">
 			<text class="section-title">音标列表</text>
 			<scroll-view class="phonetic-list phonetic-scroll" scroll-y="true" :show-scrollbar="true" enhanced="true">
-				<view class="phonetic-item" v-for="(item, index) in filteredPhonetics" :key="index">
+				<view class="list-status" v-if="listLoading">
+					<text class="status-text">正在加载音标...</text>
+				</view>
+				<view class="phonetic-item" v-for="item in filteredPhonetics" :key="item.id || item.symbol" v-else-if="filteredPhonetics.length">
 					<view class="phonetic-symbol">{{ item.symbol }}</view>
 					<view class="phonetic-info">
 						<text class="phonetic-example">{{ item.example }}</text>
@@ -45,6 +48,11 @@
 						<text class="play-btn" @click="playSound(item.symbol, item.example, item.chinese)">🔊</text>
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
 					</view>
+				</view>
+				<view class="list-status empty-state" v-else @click="loadPhonetics">
+					<text class="empty-icon">📭</text>
+					<text class="status-title">暂无音标数据</text>
+					<text class="status-text">{{ listError ? '加载失败，点击重新加载' : '当前分类下暂无内容' }}</text>
 				</view>
 			</scroll-view>
 		</view>
@@ -109,7 +117,9 @@ export default {
 			recordedPlaybackUrl: '',
 			playbackState: 'idle',
 			myAudioContext: null,
-			apiKeyConfigured: false
+			apiKeyConfigured: false,
+			listLoading: false,
+			listError: false
 		}
 	},
 	computed: {
@@ -127,6 +137,8 @@ export default {
 	},
 	methods: {
 		async loadPhonetics() {
+			this.listLoading = true;
+			this.listError = false;
 			try {
 				const res = await new Promise((resolve, reject) => {
 					uni.request({
@@ -145,6 +157,10 @@ export default {
 				this.phonetics = res || [];
 			} catch (e) {
 				console.error('加载音标失败:', e);
+				this.phonetics = [];
+				this.listError = true;
+			} finally {
+				this.listLoading = false;
 			}
 		},
 		async loadProgress() {
@@ -490,6 +506,38 @@ export default {
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
 	overflow: hidden;
+}
+
+.list-status {
+	height: 100%;
+	min-height: 360rpx;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	box-sizing: border-box;
+	padding: 60rpx 30rpx;
+}
+
+.empty-state {
+	color: #7A7A7A;
+}
+
+.empty-icon {
+	font-size: 64rpx;
+	margin-bottom: 20rpx;
+}
+
+.status-title {
+	font-size: 30rpx;
+	font-weight: bold;
+	color: #1F3A5F;
+	margin-bottom: 12rpx;
+}
+
+.status-text {
+	font-size: 25rpx;
+	color: #999999;
 }
 
 .phonetic-item {

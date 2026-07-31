@@ -1,4 +1,4 @@
-﻿/**
+/**
  * API 调用封装
  * 统一管理所有后端接口调用
  */
@@ -127,6 +127,14 @@ export function markWordAsUnknown(word, mode, userId = DEFAULT_USER_ID) {
 	return request('/word/status/unknown', 'POST', { word, mode, userId });
 }
 
+export function getWrongWords(mode = '', userId = DEFAULT_USER_ID) {
+	const modeQuery = mode ? `&mode=${encodeURIComponent(mode)}` : '';
+	return request(`/words/wrong?userId=${userId}&limit=100${modeQuery}`);
+}
+
+export function clearWrongWord(word, mode = '', userId = DEFAULT_USER_ID) {
+	return request('/word/status/clear-wrong', 'POST', { word, mode, userId });
+}
 // ==================== 语法相关 ====================
 
 /**
@@ -236,6 +244,8 @@ export default {
 	updateStudyTime,
 	getStreakData,
 	getWordStatus,
+	getWrongWords,
+	clearWrongWord,
 	markWordAsKnown,
 	markWordAsUnknown,
 	getGrammarProgress,
