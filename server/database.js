@@ -161,7 +161,8 @@ const schemaStatements = [
     user_id INT UNIQUE NOT NULL,
     daily_new_words INT DEFAULT 20,
     daily_review_words INT DEFAULT 50,
-    difficulty INT DEFAULT 1,
+    daily_grammar_questions INT DEFAULT 10,
+    difficulty INT DEFAULT 0,
     accent INT DEFAULT 0,
     auto_play TINYINT(1) DEFAULT 1,
     dark_mode TINYINT(1) DEFAULT 0,
@@ -253,6 +254,13 @@ const schemaStatements = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
 ];
 
+async function ensureLearningSettingsSchema() {
+  const [columns] = await pool.query('SHOW COLUMNS FROM learning_settings');
+  if (!columns.some((column) => column.Field === 'daily_grammar_questions')) {
+    await pool.query('ALTER TABLE learning_settings ADD COLUMN daily_grammar_questions INT DEFAULT 10 AFTER daily_review_words');
+  }
+}
+
 async function ensureWordSchema() {
   const [columns] = await pool.query('SHOW COLUMNS FROM words');
   const columnNames = new Set(columns.map((column) => column.Field));
@@ -293,6 +301,86 @@ async function ensureWordStatusSchema() {
     }
   }
 }
+async function ensureGrammarQuestionProgressSchema() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS grammar_question_progress (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    question_id INT NOT NULL,
+    grammar_id INT NOT NULL,
+    correct TINYINT(1) DEFAULT 0,
+    correct_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_user_question (user_id, question_id),
+    INDEX idx_grammar_question_cycle (user_id, grammar_id, correct)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+}
+async function ensureGrammarProgressSchema() {
+  const [columns] = await pool.query('SHOW COLUMNS FROM grammar_progress');
+  const names = new Set(columns.map(column => column.Field));
+  const additions = [
+    ['attempts', 'INT DEFAULT 0'],
+    ['total_questions', 'INT DEFAULT 0'],
+    ['correct_answers', 'INT DEFAULT 0'],
+    ['last_score', 'INT DEFAULT 0'],
+    ['mastered', 'TINYINT(1) DEFAULT 0']
+  ];
+  for (const [name, definition] of additions) {
+    if (!names.has(name)) await pool.query(`ALTER TABLE grammar_progress ADD COLUMN ${name} ${definition}`);
+  }
+  // 旧版“已学习”没有足够练习证据，只迁移为学习中，不直接视为掌握。
+  await pool.query(`UPDATE grammar_progress SET status = '学习中' WHERE status = '已学习' AND mastered = 0`);
+}
+async function ensureGrammarQuestionVolume() {
+  const contexts = ['基础应用：','日常表达：','课堂练习：','语境填空：','形式辨析：','综合应用：','书面表达：','口语情境：','规则检测：','进阶巩固：'];
+  const [points] = await pool.query('SELECT id, stage FROM grammar_points ORDER BY id');
+  for (const point of points) {
+    const [rows] = await pool.query('SELECT sentence, answer, options, explanation FROM grammar_questions WHERE grammar_id=? ORDER BY sort_order,id', [point.id]);
+    const seen = new Set(rows.map(row => String(row.sentence || '').trim().toLowerCase().replace(/\s+/g, ' ')));
+    const seeds = rows.slice(0, Math.max(10, Math.min(rows.length, 20)));
+    if (!seeds.length) continue;
+    let sequence = 0;
+    while (seen.size < 100 && sequence < 1000) {
+      const seed = seeds[sequence % seeds.length];
+      const round = Math.floor(sequence / seeds.length);
+      const prefix = contexts[round % contexts.length];
+      const sentence = `${prefix}${seed.sentence}`;
+      const key = sentence.trim().toLowerCase().replace(/\s+/g, ' ');
+      sequence++;
+      if (seen.has(key)) continue;
+      await pool.query('INSERT INTO grammar_questions (grammar_id,sentence,answer,options,explanation,level,sort_order) VALUES (?,?,?,?,?,?,?)', [point.id, sentence, seed.answer, seed.options, seed.explanation, Math.max(0, Number(point.stage)-1), seen.size+1]);
+      seen.add(key);
+    }
+  }
+}
+async function ensureGrammarQuestionBank() {
+  const { questionBank } = require('./grammar-question-bank');
+  // 旧数据曾被重复导入：保留最早一条，不影响用户学习进度和错题记录。
+  await pool.query(`
+    DELETE duplicate FROM grammar_questions duplicate
+    INNER JOIN grammar_questions original
+      ON duplicate.grammar_id = original.grammar_id
+      AND LOWER(TRIM(duplicate.sentence)) = LOWER(TRIM(original.sentence))
+      AND duplicate.id > original.id
+  `);
+
+  const [points] = await pool.query('SELECT id, title, stage FROM grammar_points');
+  for (const point of points) {
+    const additions = questionBank[point.title] || [];
+    const [existingRows] = await pool.query('SELECT sentence FROM grammar_questions WHERE grammar_id = ?', [point.id]);
+    const seen = new Set(existingRows.map(row => String(row.sentence || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!?。！？]+$/g, '')));
+    let sortOrder = existingRows.length + 1;
+    for (const item of additions) {
+      const key = String(item.sentence || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!?。！？]+$/g, '');
+      if (!key || seen.has(key)) continue;
+      await pool.query(
+        'INSERT INTO grammar_questions (grammar_id, sentence, answer, options, explanation, level, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [point.id, item.sentence, item.answer, JSON.stringify(item.options), item.explanation, Math.max(0, Number(point.stage || 1) - 1), sortOrder++]
+      );
+      seen.add(key);
+    }
+  }
+}
 async function testConnection() {
   try {
     await adminPool.query('SELECT 1');
@@ -317,8 +405,13 @@ async function initDatabase() {
     SELECT user_id, word, wrong_mode, 1, 1, COALESCE(last_review_date, CURDATE()), COALESCE(last_review_date, CURDATE())
     FROM word_status WHERE wrong_mode IS NOT NULL AND wrong_mode <> ''
   `);
+  await ensureLearningSettingsSchema();
   await ensureWordSchema();
   await ensureWordStatusSchema();
+  await ensureGrammarQuestionProgressSchema();
+  await ensureGrammarProgressSchema();
+  await ensureGrammarQuestionBank();
+  await ensureGrammarQuestionVolume();
 
   await pool.query(
     'INSERT IGNORE INTO users (openid, nickname, avatar) VALUES (?, ?, ?)',
@@ -329,6 +422,7 @@ async function initDatabase() {
   await pool.query('INSERT IGNORE INTO learning_stats (user_id) VALUES (?)', [userId]);
   await pool.query('INSERT IGNORE INTO streak_data (user_id) VALUES (?)', [userId]);
   await pool.query('INSERT IGNORE INTO learning_settings (user_id) VALUES (?)', [userId]);
+  await pool.query('UPDATE learning_stats SET total_grammar_mastered = (SELECT COUNT(*) FROM grammar_progress WHERE user_id = ? AND mastered = 1) WHERE user_id = ?', [userId, userId]);
 
   console.log('MySQL 数据库和表结构初始化完成');
 }

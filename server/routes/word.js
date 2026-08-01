@@ -1,6 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
+function chinaDate(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(date);
+}
 
 const MODE_COLUMNS = {
   listen: 'listen_done',
@@ -65,7 +70,7 @@ router.post('/status/known', async (req, res) => {
     const mode = getMode(req);
     if (!word || !mode) return res.status(400).json({ code: 400, message: '缺少单词或学习模块参数' });
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = chinaDate();
     const column = MODE_COLUMNS[mode];
     const existing = await db.prepare('SELECT * FROM word_status WHERE user_id = ? AND word = ?').get(userId, word);
     let completed = { listen: false, read: false, write: false, speak: false };
@@ -87,12 +92,12 @@ router.post('/status/known', async (req, res) => {
         UPDATE word_status
         SET ${column} = 1, wrong_mode = CASE WHEN wrong_mode = ? THEN NULL ELSE wrong_mode END, repetition = GREATEST(repetition, 1), mastered = ?, next_review_date = ?, last_review_date = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ? AND word = ?
-      `).run(mode, mastered, nextDate.toISOString().split('T')[0], today, userId, word);
+      `).run(mode, mastered, chinaDate(nextDate), today, userId, word);
     } else {
       await db.prepare(`
         INSERT INTO word_status (user_id, word, repetition, \`interval\`, next_review_date, last_review_date, mastered, listen_done, read_done, write_done, speak_done, wrong_mode)
         VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, NULL)
-      `).run(userId, word, nextDate.toISOString().split('T')[0], today, mastered, completed.listen ? 1 : 0, completed.read ? 1 : 0, completed.write ? 1 : 0, completed.speak ? 1 : 0);
+      `).run(userId, word, chinaDate(nextDate), today, mastered, completed.listen ? 1 : 0, completed.read ? 1 : 0, completed.write ? 1 : 0, completed.speak ? 1 : 0);
     }
     await db.prepare('UPDATE word_wrong_records SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND word = ? AND mode = ?').run(userId, word, mode);
     await updateLearningStats(userId, true);
@@ -111,7 +116,7 @@ router.post('/status/unknown', async (req, res) => {
     const mode = getMode(req);
     if (!word || !mode) return res.status(400).json({ code: 400, message: '缺少单词或学习模块参数' });
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = chinaDate();
     const nextDate = new Date();
     nextDate.setDate(nextDate.getDate() + 1);
     const column = MODE_COLUMNS[mode];
@@ -121,12 +126,12 @@ router.post('/status/unknown', async (req, res) => {
         UPDATE word_status
         SET ${column} = 0, wrong_mode = ?, repetition = 0, mastered = 0, next_review_date = ?, last_review_date = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ? AND word = ?
-      `).run(mode, nextDate.toISOString().split('T')[0], today, userId, word);
+      `).run(mode, chinaDate(nextDate), today, userId, word);
     } else {
       await db.prepare(`
         INSERT INTO word_status (user_id, word, repetition, \`interval\`, next_review_date, last_review_date, mastered, listen_done, read_done, write_done, speak_done, wrong_mode)
         VALUES (?, ?, 0, 1, ?, ?, 0, 0, 0, 0, 0, ?)
-      `).run(userId, word, nextDate.toISOString().split('T')[0], today, mode);
+      `).run(userId, word, chinaDate(nextDate), today, mode);
     }
     await db.prepare(`
       INSERT INTO word_wrong_records (user_id, word, mode, error_count, active, first_error_date, last_error_date, resolved_at)

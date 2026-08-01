@@ -1,5 +1,6 @@
 <script>
 import { updateStudyTime } from '@/utils/api.js'
+import { checkDailyReminder } from '@/utils/notification.js'
 
 const STUDY_ROUTES = [
   'pages/word/', 'pages/grammar/', 'pages/phonetic/', 'pages/speak/',
@@ -15,6 +16,7 @@ export default {
     this.studySeconds = Number(uni.getStorageSync('pendingStudySeconds') || 0)
     this.lastStudyTick = Date.now()
     this.studyTimer = setInterval(() => this.recordStudyTime(), 15000)
+    setTimeout(() => checkDailyReminder(), 800)
   },
   onHide() {
     this.recordStudyTime()

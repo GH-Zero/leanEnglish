@@ -6,6 +6,28 @@ function chinaDate(date = new Date()) {
 		timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
 	}).format(date);
 }
+function calculateStreaks(studyDates) {
+	const dates = [...new Set((studyDates || []).map(String))].sort();
+	let maxStreak = 0, running = 0, previous = null;
+	for (const date of dates) {
+		const parts = date.split('-').map(Number);
+		const day = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+		running = previous !== null && day - previous === 86400000 ? running + 1 : 1;
+		maxStreak = Math.max(maxStreak, running); previous = day;
+	}
+	if (!dates.length) return { currentStreak: 0, maxStreak: 0 };
+	const latest = dates[dates.length - 1];
+	const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+	if (latest !== chinaDate() && latest !== chinaDate(yesterday)) return { currentStreak: 0, maxStreak };
+	let currentStreak = 1;
+	for (let index = dates.length - 1; index > 0; index--) {
+		const a = dates[index].split('-').map(Number), b = dates[index - 1].split('-').map(Number);
+		if (Date.UTC(a[0], a[1] - 1, a[2]) - Date.UTC(b[0], b[1] - 1, b[2]) !== 86400000) break;
+		currentStreak++;
+	}
+	return { currentStreak, maxStreak };
+}
+
 
 // 获取用户信息
 router.get('/profile', async (req, res) => {
@@ -122,7 +144,8 @@ router.post('/stats/grammar', async (req, res) => {
 			return res.status(404).json({ code: 404, message: '用户统计不存在' });
 		}
 
-		const newTotalGrammar = stats.total_grammar_mastered + count;
+		const masteredRow = await db.prepare('SELECT COUNT(*) AS total FROM grammar_progress WHERE user_id = ? AND mastered = 1').get(userId);
+		const newTotalGrammar = Number(masteredRow?.total || 0);
 		const newCorrectCount = isCorrect ? stats.correct_count + count : stats.correct_count;
 		const newPracticeCount = stats.total_practice_count + count;
 		const newAccuracy = newPracticeCount > 0 ? Math.round((newCorrectCount / newPracticeCount) * 100) : 0;
@@ -238,8 +261,10 @@ router.get('/streak', async (req, res) => {
 			LIMIT 30
 		`).all(userId);
 		const studyDates = studyDateRows.map(r => r.date);
+		const calculated = calculateStreaks(studyDates);
+		await db.prepare('UPDATE streak_data SET current_streak = ?, max_streak = GREATEST(max_streak, ?), last_study_date = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?').run(calculated.currentStreak, calculated.maxStreak, studyDates[0] || null, userId);
 
-		res.json({ code: 0, data: { ...streak, study_dates: studyDates } });
+		res.json({ code: 0, data: { ...streak, current_streak: calculated.currentStreak, max_streak: Math.max(Number(streak.max_streak || 0), calculated.maxStreak), last_study_date: studyDates[0] || null, study_dates: studyDates } });
 	} catch (error) {
 		console.error('获取连续学习数据失败:', error);
 		res.status(500).json({ code: 500, message: '服务器错误' });
@@ -251,7 +276,7 @@ async function updateStreak(userId) {
 	const today = chinaDate();
 	const yesterday = new Date();
 	yesterday.setDate(yesterday.getDate() - 1);
-	const yesterdayStr = yesterday.toISOString().split('T')[0];
+	const yesterdayStr = chinaDate(yesterday);
 
 	const streak = await db.prepare('SELECT * FROM streak_data WHERE user_id = ?').get(userId);
 	if (!streak) return;

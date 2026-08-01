@@ -1,5 +1,6 @@
 <template>
 	<view class="page">
+		<AchievementUnlockNotifier />
 		<!-- 答题界面 -->
 		<template v-if="!completed">
 			<!-- 固定头部 -->
@@ -42,6 +43,7 @@
 					<template v-if="challengeType === 'grammar'">
 						<view class="grammar-main">
 							<text class="grammar-sentence">{{ currentQuestion.sentence }}</text>
+							<text v-if="currentQuestion.translation" class="grammar-translation">中文：{{ currentQuestion.translation }}</text>
 							<view class="play-btn" @click="playSentence">
 								<text class="play-icon">🔊</text>
 								<text class="play-text">播放句子</text>
@@ -62,6 +64,7 @@
 							@click="selectOption(index)"
 						>
 							<text class="option-text">{{ option }}</text>
+							<text class="option-meaning" v-if="challengeType === 'speak'">{{ optionMeaning(option) }}</text>
 						</view>
 					</view>
 
@@ -109,6 +112,7 @@
 
 <script>
 import { BASE_URL, updateWordStats, updateGrammarStats, updateSpeakStats } from '@/utils/api.js';
+import { getAudioSettings } from '@/utils/learning-settings.js';
 
 
 export default {
@@ -124,7 +128,9 @@ export default {
 			correctCount: 0,
 			completed: false,
 			audioContext: null,
-			audioRequestId: 0
+			audioRequestId: 0,
+			autoPlay: true,
+			voiceType: 1
 		}
 	},
 	computed: {
@@ -143,12 +149,15 @@ export default {
 			return '需要更多努力，加油！';
 		}
 	},
-	onLoad(options) {
+	async onLoad(options) {
+		const audioSettings = await getAudioSettings();
+		this.autoPlay = audioSettings.autoPlay;
+		this.voiceType = audioSettings.voiceType;
 		if (options.type) {
 			this.challengeType = options.type;
 			this.setChallengeTitle(options.type);
 		}
-		this.loadQuestions();
+		await this.loadQuestions();
 	},
 	onUnload() {
 		this.audioRequestId++;
@@ -200,6 +209,9 @@ export default {
 			} finally {
 				uni.hideLoading();
 			}
+			if (this.autoPlay && this.challengeType !== 'grammar' && this.questions.length && !this.completed) {
+				setTimeout(() => this.autoPlayCurrent(), 300);
+			}
 		},
 		async loadWordQuestions() {
 			const words = await this.request('/words/challenge?userId=1&count=20');
@@ -227,6 +239,7 @@ export default {
 				return;
 			}
 			const allWords = words.map(w => w.word);
+			const meaningMap = Object.fromEntries(words.map(word => [word.word, word.chinese || '暂无中文释义']));
 			this.questions = words.slice(0, 10).map(item => {
 				const others = allWords.filter(w => w !== item.word);
 				const shuffled = others.sort(() => Math.random() - 0.5).slice(0, 3);
@@ -234,6 +247,7 @@ export default {
 					word: item.word,
 					phonetic: item.phonetic_us,
 					meaning: item.chinese,
+					optionMeanings: meaningMap,
 					options: [item.word, ...shuffled].sort(() => Math.random() - 0.5)
 				};
 			});
@@ -251,10 +265,18 @@ export default {
 				explanation: q.explanation
 			}));
 		},
+		optionMeaning(option) {
+			return this.currentQuestion?.optionMeanings?.[option] || '暂无中文释义';
+		},
+		autoPlayCurrent() {
+			if (!this.autoPlay || this.completed || !this.questions.length) return;
+			if (this.challengeType === 'grammar') return;
+			else this.playWord();
+		},
 		playWord() {
 			const word = this.currentQuestion.word;
 			if (!word) return;
-			this.playAudioText(word, 1);
+			this.playAudioText(word, this.voiceType);
 		},
 		playSentence() {
 			// 将句子中的 ___ 替换为正确答案来朗读完整句子
@@ -264,7 +286,7 @@ export default {
 				return;
 			}
 			const sentence = String(question.sentence).replace('___', question.answer || '');
-			this.playAudioText(sentence, 2);
+			this.playAudioText(sentence, this.voiceType);
 		},
 		playAudioText(text, type = 2) {
 			const value = String(text || '').trim();
@@ -335,6 +357,7 @@ export default {
 			this.selectedOption = -1;
 			this.showResult = false;
 			this.isCorrect = false;
+			if (this.autoPlay && this.challengeType !== 'grammar') setTimeout(() => this.autoPlayCurrent(), 250);
 		},
 		async recordChallengeResult() {
 			const accuracy = this.correctCount / this.questions.length;
@@ -451,6 +474,7 @@ export default {
 	margin-bottom: 20rpx;
 }
 
+.grammar-translation { display:block; margin-top:14rpx; padding:14rpx 18rpx; border-radius:12rpx; background:#f5f8fa; color:#667786; font-size:25rpx; line-height:1.55; }
 .grammar-sentence {
 	font-size: 36rpx;
 	color: #333;
@@ -534,8 +558,18 @@ export default {
 }
 
 .option-text {
+	display: block;
 	font-size: 30rpx;
+	font-weight: 600;
 	color: #333;
+}
+
+.option-meaning {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	line-height: 1.45;
+	color: #7B8794;
 }
 
 .result-card {

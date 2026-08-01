@@ -8,7 +8,7 @@
 		<view class="overview-card">
 			<view class="overview-item">
 				<text class="overview-number">{{ stats.totalDays }}</text>
-				<text class="overview-label">学习天数</text>
+				<text class="overview-label">连续学习天数</text>
 			</view>
 			<view class="overview-item">
 				<text class="overview-number">{{ stats.totalWords }}</text>
@@ -63,7 +63,9 @@
 			<text class="section-title">学习日历</text>
 			<view class="calendar-card">
 				<view class="calendar-header">
-					<text class="calendar-month">{{ calendarMonth }}</text>
+					<text class="month-arrow" @click="previousMonth">‹</text>
+					<text class="calendar-month" @click="backToCurrentMonth">{{ calendarMonth }}</text>
+					<text class="month-arrow" :class="{ disabled: !canGoNextMonth }" @click="nextMonth">›</text>
 				</view>
 				<view class="calendar-weekdays">
 					<text v-for="label in ['一','二','三','四','五','六','日']" :key="label">{{ label }}</text>
@@ -101,9 +103,10 @@ export default {
 	},
 	computed: {
 		calendarMonth() { return `${this.currentDate.getFullYear()}年${this.currentDate.getMonth() + 1}月`; },
+		canGoNextMonth() { const now = new Date(); return this.currentDate.getFullYear() < now.getFullYear() || (this.currentDate.getFullYear() === now.getFullYear() && this.currentDate.getMonth() < now.getMonth()); },
 		calendarDays() {
 			const year = this.currentDate.getFullYear(); const month = this.currentDate.getMonth();
-			const offset = new Date(year, month, 1).getDay();
+			const offset = (new Date(year, month, 1).getDay() + 6) % 7;
 			const count = new Date(year, month + 1, 0).getDate();
 			return [...Array(offset).fill(null), ...Array.from({ length: count }, (_, index) => index + 1)];
 		}
@@ -112,6 +115,9 @@ export default {
 		this.loadStatistics();
 	},
 	methods: {
+		previousMonth() { this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1); },
+		nextMonth() { if (this.canGoNextMonth) this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1); },
+		backToCurrentMonth() { const now = new Date(); this.currentDate = new Date(now.getFullYear(), now.getMonth(), 1); },
 		isToday(day) { const now = new Date(); return now.getFullYear() === this.currentDate.getFullYear() && now.getMonth() === this.currentDate.getMonth() && now.getDate() === day; },
 		isStudyDay(day) { const year = this.currentDate.getFullYear(); const month = this.currentDate.getMonth(); return this.studyDates.some(value => { const date = new Date(value); return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day; }); },
 		async loadStatistics() {
@@ -119,7 +125,7 @@ export default {
 				const statistics = await getStudyStatistics();
 
 				this.stats = {
-					totalDays: statistics.totalDays || 0,
+					totalDays: statistics.currentStreak || 0,
 					totalWords: statistics.totalWords || 0,
 					totalHours: statistics.totalHours || '0',
 					wordsLearned: statistics.wordsLearned || 0,
@@ -142,7 +148,7 @@ export default {
 				const streak = uni.getStorageSync('streakData') || {};
 
 				this.stats = {
-					totalDays: streak.studyDates ? streak.studyDates.length : 0,
+					totalDays: Number(streak.currentStreak ?? streak.current_streak ?? 0),
 					totalWords: stats.totalWordsLearned || 0,
 					totalHours: ((stats.totalStudyMinutes || 0) / 60).toFixed(1),
 					wordsLearned: stats.totalWordsLearned || 0,
@@ -173,14 +179,14 @@ export default {
 }
 
 .title {
-	font-size: 48rpx;
+	font-size: 40rpx;
 	font-weight: bold;
 	color: #1F3A5F;
 	display: block;
 }
 
 .subtitle {
-	font-size: 28rpx;
+	font-size: 22rpx;
 	color: #7A7A7A;
 	display: block;
 	margin-top: 10rpx;
@@ -289,7 +295,7 @@ export default {
 
 .detail-text {
 	flex: 1;
-	font-size: 30rpx;
+	font-size: 28rpx;
 	color: #333333;
 }
 
@@ -307,9 +313,24 @@ export default {
 }
 
 .calendar-header {
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
 	margin-bottom: 20rpx;
 }
+
+.month-arrow {
+	width: 64rpx;
+	height: 58rpx;
+	line-height: 54rpx;
+	text-align: center;
+	font-size: 44rpx;
+	color: #1F3A5F;
+	background: #F1F5F9;
+	border-radius: 14rpx;
+}
+
+.month-arrow.disabled { opacity: .3; }
 
 .calendar-month {
 	font-size: 30rpx;

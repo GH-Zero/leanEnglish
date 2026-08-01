@@ -17,11 +17,10 @@
 					</view>
 				</view>
 				<view class="settings-item">
-					<text class="settings-label">每日复习数量</text>
+					<text class="settings-label">每日语法练习</text>
 					<view class="settings-value">
-						<text class="value-text">{{ dailyReviewWords }}个</text>
-						<slider class="settings-slider" :value="dailyReviewWords" :min="10" :max="100" :step="10"
-							@change="changeDailyReviewWords" activeColor="#1F3A5F" />
+						<text class="value-text">{{ dailyGrammarQuestions }}题</text>
+						<slider class="settings-slider" :value="dailyGrammarQuestions" :min="5" :max="30" :step="5" @change="changeDailyGrammarQuestions" activeColor="#1F3A5F" />
 					</view>
 				</view>
 				<view class="settings-item">
@@ -55,26 +54,7 @@
 			</view>
 		</view>
 
-		<view class="section">
-			<text class="section-title">界面设置</text>
-			<view class="settings-list">
-				<view class="settings-item">
-					<text class="settings-label">深色模式</text>
-					<switch :checked="darkMode" @change="toggleDarkMode" color="#1F3A5F" />
-				</view>
-				<view class="settings-item">
-					<text class="settings-label">字体大小</text>
-					<picker :range="fontSizeOptions" :value="fontSizeIndex" @change="changeFontSize">
-						<view class="picker-value">
-							<text class="value-text">{{ fontSizeOptions[fontSizeIndex] }}</text>
-							<text class="picker-arrow">›</text>
-						</view>
-					</picker>
-				</view>
-			</view>
-		</view>
-
-		<view class="section">
+	<view class="section">
 			<text class="section-title">其他</text>
 			<view class="settings-list">
 				<view class="settings-item" @click="clearCache">
@@ -96,21 +76,21 @@
 </template>
 
 <script>
-import { getSettings, updateSettings } from '@/utils/api.js';
+import { getSettings, updateSettings, resetLearningProgress } from '@/utils/api.js';
 export default {
 	data() {
 		return {
 			dailyNewWords: 20,
-			dailyReviewWords: 50,
-			difficultyOptions: ['简单', '普通', '困难'],
-			difficultyIndex: 1,
+			dailyGrammarQuestions: 10,
+			difficultyOptions: ['循序渐进（推荐）', '固定简单', '固定普通', '固定困难'],
+			difficultyIndex: 0,
 			accentOptions: ['美式发音', '英式发音'],
 			accentIndex: 0,
 			autoPlay: true,
 			darkMode: false,
 			fontSizeOptions: ['小', '中', '大'],
 			fontSizeIndex: 1,
-			cacheSize: '12.5MB'
+			cacheSize: '计算中'
 		}
 	},
 	methods: {
@@ -118,8 +98,8 @@ export default {
 			this.dailyNewWords = e.detail.value;
 			this.saveSettings();
 		},
-		changeDailyReviewWords(e) {
-			this.dailyReviewWords = e.detail.value;
+		changeDailyGrammarQuestions(e) {
+			this.dailyGrammarQuestions = Number(e.detail.value);
 			this.saveSettings();
 		},
 		changeDifficulty(e) {
@@ -142,43 +122,47 @@ export default {
 			this.fontSizeIndex = e.detail.value;
 			this.saveSettings();
 		},
+		calculateCacheSize() {
+			try {
+				const info = uni.getStorageInfoSync();
+				this.cacheSize = info.currentSize >= 1024 ? (info.currentSize / 1024).toFixed(1) + 'MB' : info.currentSize + 'KB';
+			} catch (_) { this.cacheSize = '未知'; }
+		},
 		clearCache() {
-			uni.showModal({
-				title: '清除缓存',
-				content: '确定要清除所有缓存数据吗？',
-				success: (res) => {
-					if (res.confirm) {
-						uni.clearStorageSync();
-						this.cacheSize = '0MB';
-						uni.showToast({ title: '清除成功', icon: 'success' });
-					}
-				}
-			});
+			uni.showModal({ title: '清除缓存', content: '仅清除可重新获取的页面缓存，不会删除学习进度和个人设置。', success: (res) => {
+				if (!res.confirm) return;
+				['learningStats', 'streakData', 'userProfile'].forEach(key => uni.removeStorageSync(key));
+				this.calculateCacheSize();
+				uni.showToast({ title: '缓存已清除', icon: 'success' });
+			} });
 		},
 		resetProgress() {
-			uni.showModal({
-				title: '重置进度',
-				content: '确定要重置所有学习进度吗？此操作不可恢复！',
-				success: (res) => {
-					if (res.confirm) {
-						uni.removeStorageSync('wordStatus');
-						uni.removeStorageSync('grammarProgress');
-						uni.removeStorageSync('speakHistory');
-						uni.showToast({ title: '本机缓存已重置，云端进度保留', icon: 'none' });
-					}
+			uni.showModal({ title: '重置学习进度', content: '将永久清空单词、语法、音标、口语、错题、统计和成就进度，设置与个人资料会保留。此操作不可恢复。', confirmColor: '#D93025', success: async (res) => {
+				if (!res.confirm) return;
+				try {
+					uni.showLoading({ title: '正在重置...' });
+					await resetLearningProgress();
+					['wordStatus','grammarProgress','grammar_done','grammar_wrong','speakHistory','phoneticProgress','learningStats','streakData','pendingStudySeconds'].forEach(key => uni.removeStorageSync(key));
+					uni.hideLoading(); this.calculateCacheSize();
+					uni.showToast({ title: '学习进度已重置', icon: 'success' });
+				} catch (error) {
+					uni.hideLoading(); console.error('重置学习进度失败:', error);
+					uni.showToast({ title: '重置失败，请稍后重试', icon: 'none' });
 				}
-			});
+			} });
 		},
 		async saveSettings() {
 			const local = {
-				dailyNewWords: this.dailyNewWords, dailyReviewWords: this.dailyReviewWords,
+				dailyNewWords: this.dailyNewWords,
+				dailyGrammarQuestions: this.dailyGrammarQuestions,
 				difficultyIndex: this.difficultyIndex, accentIndex: this.accentIndex,
 				autoPlay: this.autoPlay, darkMode: this.darkMode, fontSizeIndex: this.fontSizeIndex
 			};
 			uni.setStorageSync('learningSettings', local);
 			try {
 				await updateSettings({
-					daily_new_words: this.dailyNewWords, daily_review_words: this.dailyReviewWords,
+					daily_new_words: this.dailyNewWords,
+					daily_grammar_questions: this.dailyGrammarQuestions,
 					difficulty: this.difficultyIndex, accent: this.accentIndex,
 					auto_play: this.autoPlay ? 1 : 0, dark_mode: this.darkMode ? 1 : 0,
 					font_size: this.fontSizeIndex
@@ -192,16 +176,17 @@ export default {
 			let settings = uni.getStorageSync('learningSettings') || {};
 			try { settings = { ...settings, ...(await getSettings()) }; } catch (error) { console.error('加载学习设置失败:', error); }
 			this.dailyNewWords = Number(settings.daily_new_words ?? settings.dailyNewWords ?? 20);
-			this.dailyReviewWords = Number(settings.daily_review_words ?? settings.dailyReviewWords ?? 50);
-			this.difficultyIndex = Number(settings.difficulty ?? settings.difficultyIndex ?? 1);
+			this.dailyGrammarQuestions = Math.max(5, Math.min(30, Number(settings.daily_grammar_questions ?? settings.dailyGrammarQuestions ?? 10)));
+			this.difficultyIndex = Math.max(0, Math.min(3, Number(settings.difficulty ?? settings.difficultyIndex ?? 0)));
 			this.accentIndex = Number(settings.accent ?? settings.accentIndex ?? 0);
 			this.autoPlay = Boolean(Number(settings.auto_play ?? (settings.autoPlay !== false)));
 			this.darkMode = Boolean(Number(settings.dark_mode ?? settings.darkMode ?? 0));
 			this.fontSizeIndex = Number(settings.font_size ?? settings.fontSizeIndex ?? 1);
 		}
 	},
-	onLoad() {
+	onShow() {
 		this.loadSettings();
+		this.calculateCacheSize();
 	}
 }
 </script>
@@ -219,14 +204,14 @@ export default {
 }
 
 .title {
-	font-size: 48rpx;
+	font-size: 40rpx;
 	font-weight: bold;
 	color: #1F3A5F;
 	display: block;
 }
 
 .subtitle {
-	font-size: 28rpx;
+	font-size: 22rpx;
 	color: #7A7A7A;
 	display: block;
 	margin-top: 10rpx;
@@ -260,7 +245,7 @@ export default {
 }
 
 .settings-label {
-	font-size: 30rpx;
+	font-size: 28rpx;
 	color: #333333;
 }
 
@@ -270,7 +255,7 @@ export default {
 }
 
 .value-text {
-	font-size: 28rpx;
+	font-size: 26rpx;
 	color: #7A7A7A;
 	margin-right: 10rpx;
 }

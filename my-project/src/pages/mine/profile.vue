@@ -223,14 +223,14 @@ export default {
 }
 
 .title {
-	font-size: 48rpx;
+	font-size: 40rpx;
 	font-weight: bold;
 	color: #1F3A5F;
 	display: block;
 }
 
 .subtitle {
-	font-size: 28rpx;
+	font-size: 22rpx;
 	color: #7A7A7A;
 	display: block;
 	margin-top: 10rpx;
@@ -300,7 +300,7 @@ export default {
 }
 
 .info-label {
-	font-size: 30rpx;
+	font-size: 28rpx;
 	color: #333333;
 }
 
@@ -324,7 +324,7 @@ export default {
 }
 
 .value-text {
-	font-size: 28rpx;
+	font-size: 26rpx;
 	color: #7A7A7A;
 	margin-right: 10rpx;
 }

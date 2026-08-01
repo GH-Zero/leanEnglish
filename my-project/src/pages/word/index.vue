@@ -1,7 +1,8 @@
 <template>
 	<view class="container">
+		<AchievementUnlockNotifier />
 		<view class="header">
-			<text class="title">单词学习</text>
+			<text class="title">{{ entryType === 'daily' ? '今日单词任务' : '单词课程' }}</text>
 			<text class="subtitle">艾宾浩斯科学记忆</text>
 		</view>
 		<!-- 固定学习统计：页面滚动时保持在顶部 -->
@@ -12,7 +13,7 @@
 			<view class="stat-item wrong-entry" @click="openWrongBook"><text class="stat-number wrong-number">{{ wrongCount }}</text><text class="stat-label">错题</text></view>
 		</view>		<!-- 每日单词类型 -->
 		<view class="section">
-			<text class="section-title">每日单词类型</text>
+			<text class="section-title">{{ progressiveMode ? '循序渐进学习' : '每日单词类型' }}</text>
 			<view class="daily-category-card">
 				<view class="category-main">
 					<text class="category-label">今日学习</text>
@@ -24,7 +25,7 @@
 					<text>下一类：{{ nextCategory || '--' }}</text>
 				</view>
 			</view>
-			<scroll-view class="category-scroll" scroll-x>
+			<scroll-view class="category-scroll" scroll-x v-if="!progressiveMode">
 				<view class="category-list">
 					<view class="category-chip" v-for="item in categoryStats" :key="item.category"
 						:class="{ active: item.category === todayCategory }" @click="selectCategory(item.category)">
@@ -35,21 +36,12 @@
 				</view>
 			</scroll-view>
 		</view>
-
-
 		<!-- 今日学习统计 -->
 		<view class="section">
 			<text class="section-title">今日学习</text>
-			<view class="study-card">
-				<view class="study-info">
-					<text class="study-new">新词：{{ todayNew }}</text>
-					<text class="study-review">复习：{{ todayReview }}</text>
-				</view>
-				<view class="study-plan">
-					<text class="plan-text">每日计划：</text>
-					<text class="plan-number">{{ dailyPlan }}</text>
-					<text class="plan-text">词</text>
-				</view>
+			<view class="study-card progress-plan-card">
+				<view><text class="plan-text">今日掌握进度</text><text class="plan-hint">四项学习全部正确才计为已掌握</text></view>
+				<view class="study-plan"><text class="plan-number">{{ todayMastered }}</text><text class="plan-text"> / {{ dailyNewWords }} 词</text></view>
 			</view>
 		</view>
 
@@ -84,7 +76,7 @@
 		<view class="section" v-if="learningMode === 'listen'">
 			<view class="mode-header">
 				<text class="mode-title">{{ isWrongBookMode ? '错题重练·听音辨义' : '听音辨义' }}</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
+				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="listen-card" v-if="currentModeWord">
@@ -102,6 +94,10 @@
 						<text class="option-text">{{ opt }}</text>
 					</view>
 				</view>
+
+				<view class="completed-next-action" v-if="currentModeCompleted && !showResult">
+					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
+				</view>
 			</view>
 		</view>
 
@@ -109,7 +105,7 @@
 		<view class="section" v-if="learningMode === 'read'">
 			<view class="mode-header">
 				<text class="mode-title">{{ isWrongBookMode ? '错题重练·中文选英文' : '中文选英文' }}</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
+				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="read-card translation-card" v-if="currentModeWord">
@@ -122,6 +118,10 @@
 						<text class="option-text english-option">{{ opt }}</text>
 					</view>
 				</view>
+
+				<view class="completed-next-action" v-if="currentModeCompleted && !showResult">
+					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
+				</view>
 			</view>
 		</view>
 
@@ -129,7 +129,7 @@
 		<view class="section" v-if="learningMode === 'write'">
 			<view class="mode-header">
 				<text class="mode-title">{{ isWrongBookMode ? '错题重练·拼写默写' : '拼写默写' }}</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
+				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="write-card" v-if="currentModeWord">
@@ -148,6 +148,10 @@
 					<text class="action-btn hint" @click="showWriteHint">提示</text>
 				</view>
 				<text class="write-hint-text" v-if="writeHint">{{ writeHint }}</text>
+
+				<view class="completed-next-action" v-if="currentModeCompleted && !showResult">
+					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
+				</view>
 			</view>
 		</view>
 
@@ -155,13 +159,16 @@
 		<view class="section" v-if="learningMode === 'speak'">
 			<view class="mode-header">
 				<text class="mode-title">{{ isWrongBookMode ? '错题重练·单词跟读' : '单词跟读' }}</text>
-				<text class="mode-progress">{{ modeIndex + 1 }} / {{ modeWords.length }} · 已完成 {{ currentModeProgress }}/4</text>
+				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="speak-card" v-if="currentModeWord">
 				<text class="speak-word">{{ currentModeWord.word }}</text>
 				<text class="speak-phonetic">{{ currentModeWord.phonetic_us }}</text>
 				<text class="speak-meaning">{{ currentModeWord.chinese }}</text>
+				<view class="completed-next-action" v-if="currentModeCompleted && evaluationState === 'idle'">
+					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
+				</view>
 				<view class="speak-actions">
 					<view class="speak-play action-control" @click="playWord(currentModeWord.word)">
 						<text class="play-icon">🔊</text>
@@ -192,7 +199,7 @@
 </template>
 
 <script>
-import { BASE_URL, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats } from '@/utils/api.js';
+import { BASE_URL, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats, getSettings } from '@/utils/api.js';
 
 
 export default {
@@ -209,10 +216,15 @@ export default {
 			wrongCount: 0,
 			wrongModeCounts: { listen: 0, read: 0, write: 0, speak: 0 },
 			pendingWrongMode: '',
-			dailyPlan: 10,
+			dailyNewWords: 20,
+			difficultyMode: 0,
+			progressiveMode: true,
+			accentIndex: 0,
+			autoPlay: true,
 			showBack: false,
 			currentWordIndex: 0,
 			// 从API获取的单词
+			entryType: 'course',
 			wordList: [],
 			wordStatus: {},
 			// 学习模式
@@ -236,8 +248,10 @@ export default {
 			evaluationMessage: '',
 			recordManager: null,
 			// 统计
-			todayNew: 0,
-			todayReview: 0,
+			todayLearned: 0,
+			todayStudiedWords: [],
+			todayMastered: 0,
+			todayMasteredWords: [],
 			totalLearned: 0,
 			masteredCount: 0,
 			correctCount: 0,
@@ -263,13 +277,19 @@ export default {
 		currentModeProgress() {
 			const status = this.currentModeWord ? this.wordStatus[this.currentModeWord.word] : null;
 			return status?.completed_modes || 0;
+		},
+		currentModeCompleted() {
+			const status = this.currentModeWord ? this.wordStatus[this.currentModeWord.word] : null;
+			return Boolean(status?.modes?.[this.learningMode]);
 		}
 	},
 	onLoad(options = {}) {
+		this.entryType = options.entry === 'daily' ? 'daily' : 'course';
 		this.pendingWrongMode = options.wrongMode || '';
 		this.initRecorder();
 	},
 	async onShow() {
+		await this.loadLearningSettings();
 		await Promise.all([this.loadWordCounts(), this.loadWords(), this.loadStats(), this.loadWrongCount()]);
 		if (this.pendingWrongMode) {
 			const mode = this.pendingWrongMode;
@@ -278,7 +298,16 @@ export default {
 		}
 	},
 	methods: {
-		openWrongBook() { uni.navigateTo({ url: '/pages/mine/wrong-book' }); },
+		async loadLearningSettings() {
+			let settings = uni.getStorageSync('learningSettings') || {};
+			try { settings = { ...settings, ...(await getSettings()) }; } catch (_) {}
+			this.dailyNewWords = Number(settings.daily_new_words ?? settings.dailyNewWords ?? 20);
+			this.difficultyMode = Math.max(0, Math.min(3, Number(settings.difficulty ?? settings.difficultyIndex ?? 0)));
+			this.progressiveMode = this.difficultyMode === 0;
+			this.currentLevel = this.progressiveMode ? 0 : this.difficultyMode - 1;
+			this.accentIndex = Number(settings.accent ?? settings.accentIndex ?? 0);
+			this.autoPlay = Boolean(Number(settings.auto_play ?? (settings.autoPlay !== false)));
+		},		openWrongBook() { uni.navigateTo({ url: '/pages/mine/wrong-book' }); },
 		initRecorder() {
 			this.recordManager = uni.getRecorderManager();
 			this.recordManager.onStop((res) => {
@@ -373,12 +402,15 @@ export default {
 		async loadWords() {
 			this.loading = true;
 			try {
-				const categoryQuery = this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
-				const res = await this.request(`/words/daily?userId=1&limit=${this.dailyPlan}${categoryQuery}`);
+				const categoryQuery = !this.progressiveMode && this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
+				const modeQuery = this.progressiveMode ? '&progressive=1' : `&level=${this.currentLevel}`;
+				const res = await this.request(`/words/daily?userId=1&limit=${this.dailyNewWords}${modeQuery}${categoryQuery}`);
 				if (res && res.words) {
 					this.wordList = res.words;
-					this.todayNew = res.newCount || 0;
-					this.todayReview = res.reviewCount || 0;
+					this.todayStudiedWords = res.todayStudiedWords || [];
+					this.todayLearned = this.todayStudiedWords.length;
+					this.todayMasteredWords = res.todayMasteredWords || [];
+					this.todayMastered = this.todayMasteredWords.length;
 					this.todayCategory = res.category || '';
 					this.selectedCategory = this.todayCategory;
 					this.todayCategoryDescription = res.categoryDescription || '';
@@ -398,7 +430,7 @@ export default {
 			try {
 				const statusRes = await getWordStatus();
 				if (statusRes) {
-					this.wordStatus = {};
+					this.wordStatus = { ...statusRes };
 					let mastered = 0;
 					let learned = 0;
 					for (const word in statusRes) {
@@ -420,6 +452,7 @@ export default {
 			} catch (e) {}
 		},
 		async selectCategory(category) {
+			if (this.progressiveMode) return;
 			if (this.loading || category === this.selectedCategory) return;
 			this.selectedCategory = category;
 			this.learningMode = '';
@@ -472,7 +505,7 @@ export default {
 				this.writeResult = '';
 				if (mode === 'listen') {
 					this.generateOptions();
-					setTimeout(() => this.currentModeWord && this.playWord(this.currentModeWord.word), 300);
+					if (this.autoPlay) setTimeout(() => this.currentModeWord && this.playWord(this.currentModeWord.word), 300);
 				} else if (mode === 'read') {
 					this.generateEnglishOptions();
 				}
@@ -545,7 +578,7 @@ export default {
 				this.generateOptions();
 				// 自动播放
 				setTimeout(() => {
-					if (this.currentModeWord) {
+					if (this.autoPlay && this.currentModeWord) {
 						this.playWord(this.currentModeWord.word);
 					}
 				}, 500);
@@ -593,7 +626,7 @@ export default {
 			if (this.learningMode === 'listen') {
 				this.generateOptions();
 				setTimeout(() => {
-					if (this.currentModeWord) {
+					if (this.autoPlay && this.currentModeWord) {
 						this.playWord(this.currentModeWord.word);
 					}
 				}, 300);
@@ -667,7 +700,7 @@ export default {
 		},
 		playWord(word) {
 			const audio = uni.createInnerAudioContext();
-			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=1`;
+			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${this.accentIndex === 1 ? 2 : 1}`;
 			audio.play();
 			audio.onError((err) => {
 				console.error('音频播放失败:', err);
@@ -732,11 +765,26 @@ export default {
 			this.evaluationState = 'idle';
 			this.evaluationMessage = '';
 		},
+		markTodayStudied(word) { if (!this.todayStudiedWords.includes(word)) { this.todayStudiedWords.push(word); this.todayLearned = this.todayStudiedWords.length; } },
 		async markWordKnownAPI(word, mode) {
-			try { await markWordAsKnown(word, mode); this.loadWrongCount(); } catch (e) { console.error('记录模块完成失败:', e); }
+			try {
+				const result = await markWordAsKnown(word, mode);
+				const previous = this.wordStatus[word] || { modes: {}, completed_modes: 0, mastered: false };
+				const modes = { ...(previous.modes || {}), [mode]: true };
+				this.wordStatus = { ...this.wordStatus, [word]: { ...previous, modes, completed_modes: Number(result?.completedModes ?? Object.values(modes).filter(Boolean).length), mastered: Boolean(result?.mastered) } };
+				if (result?.mastered && !this.todayMasteredWords.includes(word)) { this.todayMasteredWords.push(word); this.todayMastered = this.todayMasteredWords.length; }
+				this.markTodayStudied(word); this.loadWrongCount();
+			} catch (e) { console.error('记录模块完成失败:', e); }
 		},
 		async markWordUnknownAPI(word, mode) {
-			try { await markWordAsUnknown(word, mode); this.loadWrongCount(); } catch (e) { console.error('记录模块错题失败:', e); }
+			try {
+				await markWordAsUnknown(word, mode);
+				const previous = this.wordStatus[word] || { modes: {}, completed_modes: 0, mastered: false };
+				const modes = { ...(previous.modes || {}), [mode]: false };
+				this.wordStatus = { ...this.wordStatus, [word]: { ...previous, modes, completed_modes: Object.values(modes).filter(Boolean).length, mastered: false } };
+				this.todayMasteredWords = this.todayMasteredWords.filter(item => item !== word); this.todayMastered = this.todayMasteredWords.length;
+				this.markTodayStudied(word); this.loadWrongCount();
+			} catch (e) { console.error('记录模块错题失败:', e); }
 		},
 
 		// ========== 通用请求 ==========
@@ -801,7 +849,7 @@ export default {
 	display: block;
 }
 .subtitle {
-	font-size: 28rpx;
+	font-size: 22rpx;
 	color: #7A7A7A;
 	display: block;
 	margin-top: 10rpx;
@@ -903,7 +951,10 @@ export default {
 	margin-bottom: 10rpx;
 }
 .study-plan { display: flex; align-items: center; }
-.plan-text { font-size: 28rpx; color: #333333; }
+.completed-next-action { position: absolute; top: 18rpx; right: 18rpx; z-index: 3; display: flex; margin: 0; }
+.completed-next-action .action-btn.next { padding: 12rpx 22rpx; border-radius: 28rpx; font-size: 23rpx; line-height: 1.2; box-shadow: 0 5rpx 14rpx rgba(31,58,95,.2); }
+.plan-text { display: block; font-size: 28rpx; color: #333333; }
+.plan-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #8A8A8A; }
 .plan-number {
 	font-size: 36rpx;
 	font-weight: bold;
@@ -963,6 +1014,7 @@ export default {
 }
 /* 听音辨义 */
 .listen-card {
+	position: relative;
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
 	padding: 40rpx;
@@ -1021,6 +1073,7 @@ export default {
 .translation-options { text-align: left; }
 .english-option { font-weight: 600; color: #1F3A5F; }
 .read-card {
+	position: relative;
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
 	overflow: hidden;
@@ -1069,6 +1122,7 @@ export default {
 }
 /* 拼写默写 */
 .write-card {
+	position: relative;
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
 	padding: 40rpx;
@@ -1114,6 +1168,7 @@ export default {
 }
 /* 单词跟读 */
 .speak-card {
+	position: relative;
 	background-color: #FFFFFF;
 	border-radius: 20rpx;
 	padding: 40rpx;
@@ -1273,13 +1328,13 @@ export default {
 	margin-bottom: 20rpx;
 }
 .empty-text {
-	font-size: 32rpx;
+	font-size: 28rpx;
 	color: #333333;
 	display: block;
 	margin-bottom: 10rpx;
 }
 .empty-hint {
-	font-size: 26rpx;
+	font-size: 22rpx;
 	color: #7A7A7A;
 	display: block;
 }

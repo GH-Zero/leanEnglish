@@ -23,6 +23,7 @@ export function request(url, method = 'GET', data = {}) {
 			},
 			success: (res) => {
 				if (res.statusCode === 200 && res.data.code === 0) {
+					if (String(method).toUpperCase() !== 'GET') setTimeout(() => uni.$emit('achievement:check'), 250);
 					resolve(res.data.data);
 				} else {
 					const error = new Error(res.data?.message || ('请求失败（' + res.statusCode + '）'));
@@ -224,6 +225,10 @@ export function updateSettings(data, userId = DEFAULT_USER_ID) {
 	return request('/settings', 'PUT', { ...data, userId });
 }
 
+export function resetLearningProgress(userId = DEFAULT_USER_ID) {
+	return request('/settings/progress', 'DELETE', { userId });
+}
+
 // ==================== 语音评测相关 ====================
 
 /**
@@ -259,6 +264,7 @@ export default {
 	getAchievements,
 	getSettings,
 	updateSettings,
+	resetLearningProgress,
 	evaluateSpeech
 };
 

@@ -142,73 +142,97 @@ router.get('/random', async (req, res) => {
   }
 });
 
-// 每日学习：每天固定轮换一个单词类型
+// 每日学习：自动模式按等级全量推进，固定模式按等级与词性筛选
 router.get('/daily', async (req, res) => {
   try {
     const userId = Number.parseInt(req.query.userId, 10) || 1;
     const limit = safeLimit(req.query.limit, 10);
+    const hasSplitPlan = req.query.newLimit !== undefined || req.query.reviewLimit !== undefined;
+    const newLimit = hasSplitPlan ? safeLimit(req.query.newLimit, 20) : limit;
+    const reviewLimit = hasSplitPlan ? safeLimit(req.query.reviewLimit, 50) : limit;
+    const progressive = String(req.query.progressive || '') === '1';
+    const requestedLevel = Number.parseInt(req.query.level, 10);
+    let level = [0, 1, 2].includes(requestedLevel) ? requestedLevel : 0;
     const date = chinaDate(req.query.date);
-    const dailyCategory = categoryForDate(date);
+
+    if (progressive) {
+      const levelRow = await db.prepare(`
+        SELECT MIN(w.level) AS level FROM words w
+        WHERE NOT EXISTS (
+          SELECT 1 FROM word_status ws
+          WHERE ws.user_id = ? AND ws.word = w.word AND ws.mastered = 1
+        )
+      `).get(userId);
+      if (levelRow?.level === null || levelRow?.level === undefined) {
+        return res.json({ code: 0, data: { date, progressive: true, allCompleted: true, words: [], reviewCount: 0, newCount: 0, category: '全部完成', categoryDescription: '你已掌握词库中的所有单词', nextCategory: '--', masteredCount: TOTAL_WORDS, categoryCount: TOTAL_WORDS, totalInDb: TOTAL_WORDS } });
+      }
+      level = Number(levelRow.level);
+    }
+
     const requestedCategory = req.query.category;
-    const category = DAILY_CATEGORIES.includes(requestedCategory)
-      ? requestedCategory
-      : DAILY_CATEGORIES[0];
-    const nextCategory = DAILY_CATEGORIES[
-      (DAILY_CATEGORIES.indexOf(category) + 1) % DAILY_CATEGORIES.length
-    ];
+    const category = DAILY_CATEGORIES.includes(requestedCategory) ? requestedCategory : DAILY_CATEGORIES[0];
+    const categorySql = progressive ? '' : 'AND w.category = ?';
+    const categoryParams = progressive ? [] : [category];
 
     const reviewWords = await db.prepare(`
       SELECT w.* FROM words w
       INNER JOIN word_status ws ON ws.word = w.word
-      WHERE ws.user_id = ?
-        AND ws.mastered = 0
-        AND w.category = ?
-      ORDER BY ws.updated_at ASC, w.sort_order ASC
+      WHERE ws.user_id = ? AND ws.mastered = 0 AND w.level = ? ${categorySql}
+      ORDER BY ws.updated_at ASC, w.frequency_rank IS NULL, w.frequency_rank ASC, w.sort_order ASC, w.id ASC
       LIMIT ?
-    `).all(userId, category, limit);
+    `).all(userId, level, ...categoryParams, reviewLimit);
 
-    const remaining = Math.max(limit - reviewWords.length, 0);
+    const newWordLimit = hasSplitPlan ? newLimit : Math.max(limit - reviewWords.length, 0);
     let newWords = [];
-    if (remaining > 0) {
+    if (newWordLimit > 0) {
       newWords = await db.prepare(`
         SELECT w.* FROM words w
-        WHERE w.category = ?
-          AND NOT EXISTS (
-            SELECT 1 FROM word_status ws
-            WHERE ws.user_id = ? AND ws.word = w.word
-          )
-        ORDER BY w.sort_order ASC
+        WHERE w.level = ? ${categorySql}
+          AND NOT EXISTS (SELECT 1 FROM word_status ws WHERE ws.user_id = ? AND ws.word = w.word)
+        ORDER BY w.frequency_rank IS NULL, w.frequency_rank ASC, w.sort_order ASC, w.id ASC
         LIMIT ?
-      `).all(category, userId, remaining);
+      `).all(level, ...categoryParams, userId, newWordLimit);
     }
 
-    const masteredStats = await db.prepare(`
-      SELECT COUNT(*) AS count FROM word_status ws
+    const scopeSql = progressive ? 'w.level = ?' : 'w.level = ? AND w.category = ?';
+    const scopeParams = progressive ? [level] : [level, category];
+    const totalRow = await db.prepare(`SELECT COUNT(*) AS count FROM words w WHERE ${scopeSql}`).get(...scopeParams);
+    const masteredRow = await db.prepare(`
+      SELECT COUNT(*) AS count FROM words w
+      INNER JOIN word_status ws ON ws.word = w.word
+      WHERE ws.user_id = ? AND ws.mastered = 1 AND ${scopeSql}
+    `).get(userId, ...scopeParams);
+    const todayRows = await db.prepare(`
+      SELECT DISTINCT ws.word, ws.mastered FROM word_status ws
       INNER JOIN words w ON w.word = ws.word
-      WHERE ws.user_id = ? AND ws.mastered = 1 AND w.category = ?
-    `).get(userId, category);
+      WHERE ws.user_id = ? AND ws.last_review_date = ? AND ${scopeSql}
+    `).all(userId, date, ...scopeParams);
+    const levelNames = ['简单阶段', '普通阶段', '困难阶段'];
 
     res.json({
       code: 0,
       data: {
         date,
-        category,
-        categoryDescription: CATEGORY_DESCRIPTIONS[category],
-        nextCategory,
+        progressive,
+        activeLevel: level,
+        category: progressive ? levelNames[level] : category,
+        categoryDescription: progressive ? '完成本阶段全部单词后自动进入下一阶段' : CATEGORY_DESCRIPTIONS[category],
+        nextCategory: progressive ? (level < 2 ? levelNames[level + 1] : '完成全部词库') : DAILY_CATEGORIES[(DAILY_CATEGORIES.indexOf(category) + 1) % DAILY_CATEGORIES.length],
         words: [...reviewWords, ...newWords],
         reviewCount: reviewWords.length,
         newCount: newWords.length,
-        masteredCount: masteredStats.count,
-        categoryCount: CATEGORY_COUNTS[category],
+        todayStudiedWords: todayRows.map(item => item.word),
+        todayMasteredWords: todayRows.filter(item => Number(item.mastered) === 1).map(item => item.word),
+        masteredCount: Number(masteredRow?.count || 0),
+        categoryCount: Number(totalRow?.count || 0),
         totalInDb: TOTAL_WORDS
       }
     });
   } catch (error) {
-    console.error('获取每日分类单词失败:', error);
+    console.error('获取每日学习计划失败:', error);
     res.status(500).json({ code: 500, message: '获取每日学习计划失败' });
   }
 });
-
 // 获取各等级和类型数量统计
 router.get('/count', async (req, res) => {
   try {

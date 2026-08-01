@@ -2,7 +2,7 @@
 	<view class="container">
 		<view class="header">
 			<view class="user-info">
-				<image class="avatar" :src="userProfile.avatar || '/static/logo.png'" mode="aspectFill"></image>
+				<image class="avatar" :src="userProfile.avatar || '/static/logo.png'" mode="aspectFill" @error="useDefaultAvatar"></image>
 				<view class="user-details">
 					<text class="username">{{ userProfile.nickname || '英语学习者' }}</text>
 					<text class="user-level">{{ levelOptions[Number(userProfile.level ?? userProfile.levelIndex ?? 0)] || levelOptions[0] }}</text>
@@ -14,8 +14,8 @@
 		
 		<view class="stats-card">
 			<view class="stat-item">
-				<text class="stat-number">{{ stats.streakDays }}</text>
-				<text class="stat-label">连续学习</text>
+				<text class="stat-number">{{ stats.learningDays }}</text>
+				<text class="stat-label">连续学习天数</text>
 			</view>
 			<view class="stat-item">
 				<text class="stat-number">{{ stats.totalWordsLearned }}</text>
@@ -77,7 +77,7 @@
 </template>
 
 <script>
-import { getLearningStats, getStreakData, getUserProfile } from '@/utils/api.js';
+import { getLearningStats, getStreakData, getUserProfile, getStudyStatistics } from '@/utils/api.js';
 
 export default {
 	data() {
@@ -85,7 +85,7 @@ export default {
 			loading: false,
 			loadError: false,
 			stats: {
-				streakDays: 0,
+				learningDays: 0,
 				totalWordsLearned: 0,
 				totalStudyMinutes: 0
 			},
@@ -102,19 +102,21 @@ export default {
 		this.loadData();
 	},
 	methods: {
+		useDefaultAvatar() { this.userProfile.avatar = '/static/logo.png'; },
 		async loadData() {
 			this.loading = true;
 			this.loadError = false;
-			const [statsResult, streakResult, profileResult] = await Promise.allSettled([
-				getLearningStats(), getStreakData(), getUserProfile()
+			const [statsResult, streakResult, profileResult, statisticsResult] = await Promise.allSettled([
+				getLearningStats(), getStreakData(), getUserProfile(), getStudyStatistics()
 			]);
 			const local = this.getLocalData();
 			const learningStats = statsResult.status === 'fulfilled' ? statsResult.value : local.stats;
 			const streak = streakResult.status === 'fulfilled' ? streakResult.value : local.streak;
 			const profile = profileResult.status === 'fulfilled' ? profileResult.value : local.profile;
-			this.loadError = [statsResult, streakResult, profileResult].some(item => item.status === 'rejected');
+			const statistics = statisticsResult.status === 'fulfilled' ? statisticsResult.value : null;
+			this.loadError = [statsResult, streakResult, profileResult, statisticsResult].some(item => item.status === 'rejected');
 			this.stats = {
-				streakDays: Number(streak?.current_streak ?? streak?.currentStreak ?? 0),
+				learningDays: Number(statistics?.currentStreak ?? streak?.current_streak ?? streak?.currentStreak ?? 0),
 				totalWordsLearned: Number(learningStats?.total_words_learned ?? learningStats?.totalWordsLearned ?? 0),
 				totalStudyMinutes: Number(learningStats?.total_study_minutes ?? learningStats?.totalStudyMinutes ?? 0)
 			};
@@ -136,7 +138,7 @@ export default {
 				const profile = uni.getStorageSync('userProfile') || {};
 
 				this.stats = {
-					streakDays: streak.currentStreak || 0,
+					learningDays: Number(streak.currentStreak ?? streak.current_streak ?? 0),
 					totalWordsLearned: stats.totalWordsLearned || 0,
 					totalStudyMinutes: stats.totalStudyMinutes || 0
 				};
@@ -172,7 +174,7 @@ export default {
 	min-height: 100vh;
 }
 
-.load-tip { display: block; text-align: center; color: #7A7A7A; font-size: 24rpx; margin: 12rpx 0; }
+.load-tip { display: block; text-align: center; color: #7A7A7A; font-size: 22rpx; margin: 12rpx 0; }
 .load-tip.error { color: #C24141; }
 
 .header {
@@ -199,14 +201,14 @@ export default {
 }
 
 .username {
-	font-size: 36rpx;
+	font-size: 40rpx;
 	font-weight: bold;
 	color: #FFFFFF;
 	display: block;
 }
 
 .user-level {
-	font-size: 28rpx;
+	font-size: 22rpx;
 	color: #C8D3E6;
 	display: block;
 	margin-top: 10rpx;
@@ -227,27 +229,27 @@ export default {
 }
 
 .stat-number {
-	font-size: 48rpx;
+	font-size: 37rpx;
 	font-weight: bold;
 	color: #1F3A5F;
 	display: block;
 }
 
 .stat-label {
-	font-size: 24rpx;
+	font-size: 22rpx;
 	color: #7A7A7A;
 	display: block;
 }
 
 .section {
-	margin: 30rpx 0;
+	margin: 26rpx 0;
 }
 
 .section-title {
 	font-size: 32rpx;
 	font-weight: bold;
 	color: #1F3A5F;
-	margin-bottom: 20rpx;
+	margin-bottom: 14rpx;
 	display: block;
 }
 
@@ -260,23 +262,25 @@ export default {
 .tool-item, .settings-item {
 	display: flex;
 	align-items: center;
-	padding: 30rpx;
+	padding: 23rpx 21rpx;
 	border-bottom: 1rpx solid #F0F0F0;
 }
 
 .tool-icon, .settings-icon {
-	font-size: 40rpx;
-	margin-right: 20rpx;
+	font-size: 36rpx;
+	margin-right: 17rpx;
 }
 
 .tool-text, .settings-text {
 	flex: 1;
-	font-size: 30rpx;
-	color: #333333;
+	font-size: 28rpx;
+	line-height: 1.4;
+	font-weight: 600;
+	color: #294866;
 }
 
 .tool-arrow, .settings-arrow {
-	font-size: 30rpx;
+	font-size: 32rpx;
 	color: #7A7A7A;
 }
 </style>

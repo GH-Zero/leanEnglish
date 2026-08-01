@@ -1,5 +1,6 @@
 <template>
 	<view class="container">
+		<AchievementUnlockNotifier />
 		<view class="section progress-section">
 			<text class="section-title">学习进度</text>
 			<view class="progress-card">
@@ -13,7 +14,7 @@
 			</view>
 		</view>
 		<view class="header">
-			<text class="title">音标学习</text>
+			<text class="title">{{ entryType === 'daily' ? '今日发音任务' : '音标课程' }}</text>
 			<text class="subtitle">48个英美音标逐个教学</text>
 		</view>
 		
@@ -98,11 +99,13 @@
 
 <script>
 import { BASE_URL, evaluateSpeech, getPhoneticProgress, updatePhoneticProgress, updatePhoneticStats } from '@/utils/api.js';
+import { getAudioSettings } from '@/utils/learning-settings.js';
 
 
 export default {
 	data() {
 		return {
+			entryType: 'course',
 			currentCategory: 'vowel',
 			phonetics: [],
 			showPracticeModal: false,
@@ -119,7 +122,8 @@ export default {
 			myAudioContext: null,
 			apiKeyConfigured: false,
 			listLoading: false,
-			listError: false
+			listError: false,
+			voiceType: 1
 		}
 	},
 	computed: {
@@ -130,7 +134,10 @@ export default {
 			return Math.round((this.masteredCount / 48) * 100);
 		}
 	},
-	onLoad() {
+	async onLoad(options = {}) {
+		this.entryType = options.entry === 'daily' ? 'daily' : 'course';
+		const audioSettings = await getAudioSettings();
+		this.voiceType = audioSettings.voiceType;
 		this.initRecorder();
 		this.loadPhonetics();
 		this.loadProgress();
@@ -195,7 +202,7 @@ export default {
 		},
 		playWordAudio(word) {
 			const audio = uni.createInnerAudioContext();
-			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=2`;
+			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${this.voiceType}`;
 			audio.play();
 			audio.onError((err) => {
 				console.error('音频播放失败:', err);
@@ -443,7 +450,7 @@ export default {
 }
 
 .subtitle {
-	font-size: 28rpx;
+	font-size: 22rpx;
 	color: #7A7A7A;
 	display: block;
 	margin-top: 10rpx;
@@ -463,7 +470,7 @@ export default {
 }
 
 .phonetic-scroll {
-	height: calc(100vh - 690rpx);
+	height: calc(100vh - 600rpx);
 	min-height: 360rpx;
 	box-sizing: border-box;
 }

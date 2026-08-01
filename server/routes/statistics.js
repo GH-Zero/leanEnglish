@@ -6,6 +6,28 @@ function chinaDate(date = new Date()) {
 		timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
 	}).format(date);
 }
+function calculateStreaks(studyDates) {
+	const dates = [...new Set((studyDates || []).map(String))].sort();
+	let maxStreak = 0, running = 0, previous = null;
+	for (const date of dates) {
+		const parts = date.split('-').map(Number);
+		const day = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+		running = previous !== null && day - previous === 86400000 ? running + 1 : 1;
+		maxStreak = Math.max(maxStreak, running); previous = day;
+	}
+	if (!dates.length) return { currentStreak: 0, maxStreak: 0 };
+	const latest = dates[dates.length - 1];
+	const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+	if (latest !== chinaDate() && latest !== chinaDate(yesterday)) return { currentStreak: 0, maxStreak };
+	let currentStreak = 1;
+	for (let index = dates.length - 1; index > 0; index--) {
+		const a = dates[index].split('-').map(Number), b = dates[index - 1].split('-').map(Number);
+		if (Date.UTC(a[0], a[1] - 1, a[2]) - Date.UTC(b[0], b[1] - 1, b[2]) !== 86400000) break;
+		currentStreak++;
+	}
+	return { currentStreak, maxStreak };
+}
+
 
 // 获取学习统计数据
 router.get('/', async (req, res) => {
@@ -22,9 +44,9 @@ router.get('/', async (req, res) => {
 			SELECT DISTINCT date FROM daily_records
 			WHERE user_id = ? AND (words_learned > 0 OR grammar_practiced > 0 OR phonetic_practiced > 0 OR speak_practiced > 0 OR study_minutes > 0)
 			ORDER BY date DESC
-			LIMIT 366
 		`).all(userId);
 		const studyDates = studyDateRows.map(r => r.date);
+		const calculatedStreak = calculateStreaks(studyDates);
 
 		// 获取本周数据
 		const weekData = await getWeekData(userId);
@@ -43,8 +65,8 @@ router.get('/', async (req, res) => {
 				grammarPractice: stats ? stats.total_grammar_mastered : 0,
 				speakPractice: stats ? stats.total_speak_practice : 0,
 				accuracy: stats ? stats.accuracy : 0,
-				currentStreak: streak ? streak.current_streak : 0,
-				maxStreak: streak ? streak.max_streak : 0,
+				currentStreak: calculatedStreak.currentStreak,
+				maxStreak: Math.max(Number(streak?.max_streak || 0), calculatedStreak.maxStreak),
 				studyDates: studyDates,
 				weekData: weekData,
 				todayRecord: todayRecord || {

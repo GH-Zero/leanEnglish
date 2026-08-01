@@ -1,79 +1,33 @@
 <template>
 	<view class="container">
-		<view class="header">
-			<text class="title">英语学习小程序</text>
-			<text class="subtitle">从零基础到自由沟通</text>
+		<view class="page-header"><text class="page-title">学习概览</text><text class="page-subtitle">每天完成一点，稳步提升英语能力</text></view>
+		<view class="stats-strip">
+			<view class="stat"><text class="stat-value">{{ stats.streakDays }}<text>天</text></text><text class="stat-label">连续学习</text></view><view class="stat-line"></view>
+			<view class="stat"><text class="stat-value">{{ stats.totalWordsLearned }}<text>个</text></text><text class="stat-label">已学单词</text></view><view class="stat-line"></view>
+			<view class="stat"><text class="stat-value">{{ stats.totalGrammarMastered }}<text>项</text></text><text class="stat-label">语法掌握</text></view>
 		</view>
 
-		<view class="stats-card">
-			<view class="stat-item">
-				<text class="stat-number">{{ stats.streakDays }}</text>
-				<text class="stat-label">连续学习天数</text>
-			</view>
-			<view class="stat-item">
-				<text class="stat-number">{{ stats.totalWordsLearned }}</text>
-				<text class="stat-label">已学单词</text>
-			</view>
-			<view class="stat-item">
-				<text class="stat-number">{{ stats.totalGrammarMastered }}</text>
-				<text class="stat-label">语法掌握</text>
+		<view class="section task-section">
+			<view class="section-heading"><view><text class="section-title">今日任务</text><text class="section-subtitle">按计划完成今天的学习内容</text></view><text class="plan-tag">每日计划</text></view>
+			<view class="task-panel">
+				<view class="task-row" @click="goToPage('/pages/phonetic/index?entry=daily')">
+					<view class="task-icon phonetic">🔊</view><view class="task-info"><text class="task-title">发音训练</text><text class="task-desc">继续练习未掌握的音标</text></view><text class="row-arrow">›</text>
+				</view>
+				<view class="task-row" @click="goToPage('/pages/word/index?entry=daily')">
+					<view class="task-icon">📚</view><view class="task-info"><text class="task-title">单词学习</text><text class="task-desc">今日目标 {{ dailyNewWords }} 词，完成四项练习</text></view><text class="row-arrow">›</text>
+				</view>
+				<view class="task-row" @click="startDailyGrammar">
+					<view class="task-icon grammar">📝</view><view class="task-info"><text class="task-title">语法精讲</text><text class="task-desc">学习1个知识点，完成{{ dailyGrammarQuestions }}题</text></view><text class="row-arrow">›</text>
+				</view>
 			</view>
 		</view>
 
-		<view class="section">
-			<text class="section-title">今日学习任务</text>
-			<view class="task-list">
-				<view class="task-item" @click="goToPage('/pages/phonetic/index')">
-					<text class="task-icon">📢</text>
-					<text class="task-text">发音跟读</text>
-					<text class="task-arrow">›</text>
-				</view>
-				<view class="task-item" @click="goToPage('/pages/word/index')">
-					<text class="task-icon">📚</text>
-					<text class="task-text">单词记忆</text>
-					<text class="task-arrow">›</text>
-				</view>
-				<view class="task-item" @click="goToPage('/pages/grammar/index')">
-					<text class="task-icon">📝</text>
-					<text class="task-text">语法学习</text>
-					<text class="task-arrow">›</text>
-				</view>
-			</view>
-		</view>
-		
-		<view class="section">
-			<text class="section-title">每日闯关学习</text>
+		<view class="section challenge-section">
+			<view class="section-heading"><view><text class="section-title">专项挑战</text><text class="section-subtitle">完成任务后，用闯关检验成果</text></view></view>
 			<view class="challenge-list">
-				<view class="challenge-item" @click="goToChallenge('word')">
-					<view class="challenge-left">
-						<text class="challenge-icon">🏆</text>
-						<view class="challenge-info">
-							<text class="challenge-title">每日单词闯关</text>
-							<text class="challenge-desc">完成10个单词背诵挑战</text>
-						</view>
-					</view>
-					<text class="challenge-arrow">›</text>
-				</view>
-				<view class="challenge-item" @click="goToChallenge('speak')">
-					<view class="challenge-left">
-						<text class="challenge-icon">🎤</text>
-						<view class="challenge-info">
-							<text class="challenge-title">口语挑战</text>
-							<text class="challenge-desc">跟读3句标准发音</text>
-						</view>
-					</view>
-					<text class="challenge-arrow">›</text>
-				</view>
-				<view class="challenge-item" @click="goToChallenge('grammar')">
-					<view class="challenge-left">
-						<text class="challenge-icon">📝</text>
-						<view class="challenge-info">
-							<text class="challenge-title">语法闯关</text>
-							<text class="challenge-desc">掌握今日语法知识点</text>
-						</view>
-					</view>
-					<text class="challenge-arrow">›</text>
-				</view>
+				<view class="challenge-row" @click="goToChallenge('word')"><view class="challenge-icon word">🏆</view><view class="challenge-info"><text class="challenge-title">单词闯关</text><text class="challenge-desc">10个单词快速检验</text></view><text class="challenge-go">去挑战 ›</text></view>
+				<view class="challenge-row" @click="goToChallenge('speak')"><view class="challenge-icon speak">🎤</view><view class="challenge-info"><text class="challenge-title">口语挑战</text><text class="challenge-desc">听音辨词与发音训练</text></view><text class="challenge-go">去挑战 ›</text></view>
+				<view class="challenge-row" @click="goToChallenge('grammar')"><view class="challenge-icon grammar">✍️</view><view class="challenge-info"><text class="challenge-title">语法闯关</text><text class="challenge-desc">随机语法题巩固练习</text></view><text class="challenge-go">去挑战 ›</text></view>
 			</view>
 		</view>
 	</view>
@@ -82,12 +36,17 @@
 <script>
 import {
 	getLearningStats,
-	getStreakData
+	getStreakData,
+	getGrammarProgress,
+	getSettings,
+	request
 } from '@/utils/api.js';
 
 export default {
 	data() {
 		return {
+			dailyGrammarQuestions: 10,
+			dailyNewWords: 20,
 			stats: {
 				streakDays: 0,
 				totalWordsLearned: 0,
@@ -101,10 +60,13 @@ export default {
 	methods: {
 		async loadData() {
 			try {
-				const [learningStats, streak] = await Promise.all([
+				const [learningStats, streak, settings] = await Promise.all([
 					getLearningStats(),
-					getStreakData()
+					getStreakData(),
+					getSettings()
 				]);
+				this.dailyGrammarQuestions = Math.max(5, Math.min(30, Number(settings?.daily_grammar_questions || 10)));
+				this.dailyNewWords = Math.max(5, Number(settings?.daily_new_words || 20)); 
 
 				this.stats = {
 					streakDays: streak ? streak.current_streak : 0,
@@ -137,6 +99,20 @@ export default {
 				uni.navigateTo({ url: url });
 			}
 		},
+		async startDailyGrammar() {
+			uni.showLoading({ title: '正在安排今日课程' });
+			try {
+				const [points, progress] = await Promise.all([request('/grammar-point/list'), getGrammarProgress()]);
+				const ordered = Array.isArray(points) ? [...points].sort((a, b) => Number(a.stage || 0) - Number(b.stage || 0) || Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id) - Number(b.id)) : [];
+				const nextPoint = ordered.find(point => !progress?.[point.id]?.mastered);
+				uni.hideLoading();
+				if (nextPoint) uni.navigateTo({ url: '/pages/grammar/practice?id=' + nextPoint.id + '&entry=daily' });
+				else { uni.showToast({ title: '全部语法已完成，可自由复习', icon: 'none' }); setTimeout(() => uni.navigateTo({ url: '/pages/grammar/index' }), 800); }
+			} catch (error) {
+				uni.hideLoading();
+				uni.showToast({ title: '今日语法加载失败', icon: 'none' });
+			}
+	},
 		goToChallenge(type) {
 			uni.navigateTo({ url: `/pages/challenge/index?type=${type}` });
 		}
@@ -145,147 +121,7 @@ export default {
 </script>
 
 <style>
-.container {
-	padding: 20rpx;
-	background-color: #F7F5F0;
-	min-height: 100vh;
-}
-
-.header {
-	text-align: center;
-	padding: 40rpx 0;
-}
-
-.title {
-	font-size: 48rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	display: block;
-}
-
-.subtitle {
-	font-size: 28rpx;
-	color: #7A7A7A;
-	display: block;
-	margin-top: 10rpx;
-}
-
-.stats-card {
-	display: flex;
-	justify-content: space-around;
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	padding: 30rpx;
-	margin: 20rpx 0;
-	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1);
-}
-
-.stat-item {
-	text-align: center;
-}
-
-.stat-number {
-	font-size: 48rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	display: block;
-}
-
-.stat-label {
-	font-size: 24rpx;
-	color: #7A7A7A;
-	display: block;
-}
-
-.section {
-	margin: 30rpx 0;
-}
-
-.section-title {
-	font-size: 32rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	margin-bottom: 20rpx;
-	display: block;
-}
-
-.task-list {
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	overflow: hidden;
-}
-
-.task-item {
-	display: flex;
-	align-items: center;
-	padding: 30rpx;
-	border-bottom: 1rpx solid #F0F0F0;
-}
-
-.task-icon {
-	font-size: 40rpx;
-	margin-right: 20rpx;
-}
-
-.task-text {
-	flex: 1;
-	font-size: 30rpx;
-	color: #333333;
-}
-
-.task-arrow {
-	font-size: 30rpx;
-	color: #7A7A7A;
-}
-
-.challenge-list {
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	overflow: hidden;
-	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1);
-}
-
-.challenge-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 30rpx;
-	border-bottom: 1rpx solid #F0F0F0;
-}
-
-.challenge-item:last-child {
-	border-bottom: none;
-}
-
-.challenge-left {
-	display: flex;
-	align-items: center;
-}
-
-.challenge-icon {
-	font-size: 48rpx;
-	margin-right: 20rpx;
-}
-
-.challenge-info {
-	display: flex;
-	flex-direction: column;
-}
-
-.challenge-title {
-	font-size: 30rpx;
-	color: #333333;
-	font-weight: bold;
-}
-
-.challenge-desc {
-	font-size: 24rpx;
-	color: #999999;
-	margin-top: 8rpx;
-}
-
-.challenge-arrow {
-	font-size: 36rpx;
-	color: #CCCCCC;
-}
+.container{box-sizing:border-box;min-height:100vh;padding:20rpx 22rpx 52rpx;background:linear-gradient(180deg,#eef5f6 0,#f7f5f0 390rpx)}.page-header{position:relative;padding:28rpx 25rpx 58rpx;border-radius:25rpx;background:#1F3A5F;overflow:hidden}.page-title{display:block;font-size:40rpx;line-height:1.25;font-weight:800;color:#fff}.page-subtitle{display:block;margin-top:8rpx;font-size:22rpx;color:rgba(255,255,255,.72)}.stats-strip{position:relative;display:flex;align-items:center;margin:-38rpx 13rpx 0;padding:20rpx 8rpx;border:1rpx solid rgba(255,255,255,.8);border-radius:19rpx;background:rgba(255,255,255,.96);box-shadow:0 9rpx 24rpx rgba(35,63,87,.10)}.stat{flex:1;min-width:0;text-align:center}.stat-value{display:block;white-space:nowrap;font-size:37rpx;line-height:1.2;font-weight:800;color:#1f4b70}.stat-value text{margin-left:3rpx;font-size:20rpx;font-weight:500;color:#7d8d9b}.stat-label{display:block;margin-top:6rpx;white-space:nowrap;font-size:22rpx;color:#84939f}.stat-line{width:1rpx;height:48rpx;background:#e5ecef}
+.section{margin-top:31rpx}.section-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:0 5rpx 15rpx}.section-title{display:block;font-size:32rpx;font-weight:800;color:#213f61}.section-subtitle{display:block;margin-top:5rpx;font-size:22rpx;color:#929da7}.plan-tag{padding:7rpx 14rpx;border-radius:20rpx;background:#def5f1;color:#0d8c81;font-size:19rpx;font-weight:700}.task-panel{overflow:hidden;border-radius:23rpx;background:#fff;box-shadow:0 8rpx 24rpx rgba(35,63,87,.08)}.task-row{display:flex;align-items:center;padding:23rpx 21rpx}.task-row+.task-row{border-top:1rpx solid #edf0f2}.task-icon{display:flex;align-items:center;justify-content:center;width:66rpx;height:66rpx;border-radius:18rpx;background:#d3efe9;font-size:31rpx}.task-icon.phonetic{background:#e8f4fc}.task-icon.grammar{background:#fff0e7}.task-info{flex:1;min-width:0;margin-left:17rpx}.task-title{display:block;font-size:28rpx;font-weight:800;color:#294866}.task-desc{display:block;margin-top:5rpx;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:22rpx;color:#8d99a3}.row-arrow{font-size:32rpx;color:#9ba6af}
+.challenge-list{overflow:hidden;border-radius:22rpx;background:#fff;box-shadow:0 7rpx 22rpx rgba(35,63,87,.07)}.challenge-row{display:flex;align-items:center;padding:20rpx 21rpx}.challenge-row+.challenge-row{border-top:1rpx solid #edf0f2}.challenge-icon{display:flex;align-items:center;justify-content:center;width:57rpx;height:57rpx;border-radius:16rpx;background:#fff3dd;font-size:27rpx}.challenge-icon.speak{background:#f2eafa}.challenge-icon.grammar{background:#e7f6f3}.challenge-info{flex:1;margin-left:17rpx}.challenge-title{display:block;font-size:28rpx;font-weight:800;color:#294866}.challenge-desc{display:block;margin-top:4rpx;font-size:22rpx;color:#98a1aa}.challenge-go{font-size:22rpx;font-weight:700;color:#547286}.task-row:active,.challenge-row:active{background-color:#f5f8f8;opacity:.92}
 </style>

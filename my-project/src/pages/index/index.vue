@@ -42,7 +42,7 @@ export default {
 }
 
 .title {
-  font-size: 36rpx;
+  font-size: 40rpx;
   color: #8f8f94;
 }
 </style>
