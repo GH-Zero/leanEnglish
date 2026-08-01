@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { initDatabase } = require('./database');
+const { authMiddleware } = require('./auth');
 
 // 导入路由
 const userRoutes = require('./routes/user');
@@ -25,8 +26,10 @@ const PORT = process.env.PORT || 3000;
 
 // 中间件
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '5mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '5mb' }));
+app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
+app.use(authMiddleware);
 
 // 请求日志
 app.use((req, res, next) => {

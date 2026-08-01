@@ -58,15 +58,35 @@ export default {
           getSettings().catch(() => uni.getStorageSync('learningSettings') || {})
         ]);
         this.dailyGrammarQuestions = Math.max(5, Math.min(30, Number(settings.daily_grammar_questions ?? settings.dailyGrammarQuestions ?? 10))); 
-        const baseExamples = Array.isArray(response.examples) ? response.examples : [];
-        const questionExamples = (response.questions || []).map(question => String(question.sentence || '').replace('___', question.answer || '')).filter(Boolean);
-        response.examples = [...new Set([...baseExamples, ...questionExamples])].slice(0, 6);
+
+        const normalizeExample = value => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ').replace(/[.!?。！？]+$/g, '');
+        const isUsefulExample = value => {
+          const text = String(value || '').trim();
+          return text && !/^choose the correct answer\s*\(\d+\)\.?$/i.test(text) && !/^(question|practice|example)\s*\d+\.?$/i.test(text);
+        };
+        const seenExamples = new Set();
+        response.examples = (Array.isArray(response.examples) ? response.examples : [])
+          .filter(isUsefulExample)
+          .filter(example => {
+            const key = normalizeExample(example);
+            if (!key || seenExamples.has(key)) return false;
+            seenExamples.add(key);
+            return true;
+          })
+          .slice(0, 6);
         this.grammar = response;
         this.questions = this.createQuestions(response.questions || []);
+        if (!this.stagePractice && this.grammar.id) await this.markStarted();
       } catch (_) { uni.showToast({ title: '加载练习失败', icon: 'none' }); }
       this.loading = false;
     },
-    createQuestions(source) {
+    markStarted() {
+      return new Promise(resolve => uni.request({
+        url: BASE_URL + '/grammar/progress/start', method: 'POST', header: { 'Content-Type': 'application/json' },
+        data: { userId: 1, grammar_id: this.grammar.id },
+        success: () => resolve(), fail: () => resolve()
+      }));
+    },    createQuestions(source) {
       let pool = source.filter(q => Array.isArray(q.options) && q.options.length);
       const fallback = {
         '名词复数': [['One child, two ___.','children',['child','children','childs','childes']],['Two ___ are playing.','boys',['boy','boys','boies','boyes']],['Three ___ on the table.','books',['book','books','bookes','book']],['Many ___ live here.','people',['person','people','persons','peoples']],['Two ___ are running.','mice',['mouse','mice','mouses','mousees']]],

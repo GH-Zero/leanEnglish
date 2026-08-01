@@ -1,5 +1,6 @@
-﻿const express = require('express');
+const express = require('express');
 const crypto = require('crypto');
+const https = require('https');
 const WebSocket = require('ws');
 const config = require('../xfyun-config');
 
@@ -17,6 +18,47 @@ function saveRecording(buffer, format) {
   return id;
 }
 
+const ttsCache = new Map();
+function fetchTts(url, redirects = 0) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, response => {
+      if ([301, 302, 307, 308].includes(response.statusCode) && response.headers.location && redirects < 3) {
+        response.resume();
+        return resolve(fetchTts(response.headers.location, redirects + 1));
+      }
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        const type = String(response.headers['content-type'] || '');
+        if (response.statusCode !== 200 || !type.includes('audio/') || buffer.length < 100) return reject(new Error('Invalid TTS response'));
+        resolve(buffer);
+      });
+    });
+    request.setTimeout(12000, () => request.destroy(new Error('TTS timeout')));
+    request.on('error', reject);
+  });
+}
+router.get('/tts', async (req, res) => {
+  const text = String(req.query.text || '').trim();
+  if (!text || text.length > 200) return res.status(400).json({ code: 400, message: '发音文本无效。' });
+  const speed = Math.max(1, Math.min(5, Number(req.query.speed) || 3));
+  const cacheKey = `${speed}:${text}`;
+  try {
+    let audio = ttsCache.get(cacheKey);
+    if (!audio) {
+      const url = `https://fanyi.baidu.com/gettts?lan=en&text=${encodeURIComponent(text)}&spd=${speed}&source=web`;
+      audio = await fetchTts(url);
+      if (ttsCache.size >= 100) ttsCache.delete(ttsCache.keys().next().value);
+      ttsCache.set(cacheKey, audio);
+    }
+    res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': audio.length, 'Cache-Control': 'public, max-age=86400' });
+    res.end(audio);
+  } catch (error) {
+    console.error('TTS proxy failed:', error.message);
+    res.status(502).json({ code: 502, message: '发音服务暂时不可用。' });
+  }
+});
 router.get('/recording/:id', (req, res) => {
   const item = recordings.get(req.params.id);
   if (!item || item.expiresAt < Date.now()) return res.status(404).end();
@@ -108,6 +150,74 @@ function parseResult(xml) {
   return { hasScore: Number.isFinite(total), score, feedback: feedbackFor(score), detail: { pronunciation: scoreOf(numberFromXml(xml, 'accuracy_score')) || score, fluency: scoreOf(numberFromXml(xml, 'fluency_score')) || score, intonation: scoreOf(numberFromXml(xml, 'standard_score')) || score } };
 }
 
+function createIatAuthUrl() {
+  const host = 'iat-api.xfyun.cn';
+  const path = '/v2/iat';
+  const date = new Date().toUTCString();
+  const origin = `host: ${host}\ndate: ${date}\nGET ${path} HTTP/1.1`;
+  const signature = crypto.createHmac('sha256', config.apiSecret).update(origin).digest('base64');
+  const authorization = Buffer.from(`api_key="${config.apiKey}", algorithm="hmac-sha256", headers="host date request-line", signature="${signature}"`).toString('base64');
+  return `wss://${host}${path}?authorization=${encodeURIComponent(authorization)}&date=${encodeURIComponent(date)}&host=${host}`;
+}
+router.post('/transcribe', (req, res) => {
+  const { audioBase64, audioFormat = 'mp3' } = req.body || {};
+  if (!audioBase64 || !String(audioBase64).trim()) return res.status(400).json({ code: 400, message: '请提供录音数据。' });
+  if (!hasSpeechConfig()) return res.status(503).json({ code: 503, message: '语音识别服务尚未配置。' });
+  const audio = Buffer.from(audioBase64, 'base64');
+  if (!audio.length || audio.length > 8 * 1024 * 1024) return res.status(400).json({ code: 400, message: '录音数据无效。' });
+  const encoding = String(audioFormat).toLowerCase() === 'mp3' ? 'lame' : 'raw';
+  const ws = new WebSocket(createIatAuthUrl());
+  const parts = [];
+  let offset = 0;
+  let finished = false;
+  let timer;
+  const timeout = setTimeout(() => finish(504, { code: 504, message: '语音识别超时，请重试。' }), 25000);
+  function finish(status, payload) {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timeout);
+    if (timer) clearInterval(timer);
+    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) ws.close(1000);
+    res.status(status).json(payload);
+  }
+  ws.on('open', () => {
+    timer = setInterval(() => {
+      if (finished || ws.readyState !== WebSocket.OPEN) return;
+      if (offset >= audio.length) {
+        clearInterval(timer); timer = null;
+        ws.send(JSON.stringify({ data: { status: 2, format: 'audio/L16;rate=16000', encoding, audio: '' } }));
+        return;
+      }
+      const chunk = audio.subarray(offset, Math.min(offset + FRAME_SIZE, audio.length));
+      const first = offset === 0;
+      offset += chunk.length;
+      const packet = { data: { status: first ? 0 : 1, format: 'audio/L16;rate=16000', encoding, audio: chunk.toString('base64') } };
+      if (first) {
+        packet.common = { app_id: config.appId };
+        packet.business = { language: 'en_us', domain: 'iat', vad_eos: 5000 };
+      }
+      ws.send(JSON.stringify(packet));
+    }, 40);
+  });
+  ws.on('message', raw => {
+    try {
+      const message = JSON.parse(raw.toString());
+      if (message.code !== 0) return finish(502, { code: 502, message: `语音识别失败：${message.message || message.code}` });
+      const words = message.data?.result?.ws || [];
+      for (const word of words) {
+        const value = word?.cw?.[0]?.w;
+        if (value) parts.push(value);
+      }
+      if (message.data?.status === 2) {
+        const transcript = parts.join('').replace(/\s+/g, ' ').trim();
+        if (!transcript) return finish(422, { code: 422, message: '没有识别到英文，请重新录音。' });
+        return finish(200, { code: 0, data: { text: transcript } });
+      }
+    } catch (_) { finish(502, { code: 502, message: '语音识别结果解析失败。' }); }
+  });
+  ws.on('error', () => finish(502, { code: 502, message: '语音识别服务连接失败。' }));
+  ws.on('close', () => { if (!finished) finish(502, { code: 502, message: '语音识别连接提前关闭。' }); });
+});
 router.post('/evaluate', (req, res) => {
   const { audioBase64, word, category = 'read_word', audioFormat = 'wav' } = req.body || {};
   if (!audioBase64 || !String(audioBase64).trim()) return res.status(400).json({ code: 400, message: '请提供录音数据。' });

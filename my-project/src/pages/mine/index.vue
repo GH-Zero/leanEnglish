@@ -5,7 +5,7 @@
 				<image class="avatar" :src="userProfile.avatar || '/static/logo.png'" mode="aspectFill" @error="useDefaultAvatar"></image>
 				<view class="user-details">
 					<text class="username">{{ userProfile.nickname || '英语学习者' }}</text>
-					<text class="user-level">{{ levelOptions[Number(userProfile.level ?? userProfile.levelIndex ?? 0)] || levelOptions[0] }}</text>
+					<text class="user-level">坚持学习，持续进步</text>
 				</view>
 			</view>
 		</view>
@@ -93,9 +93,7 @@ export default {
 			userProfile: {
 				nickname: '英语学习者',
 				avatar: '/static/logo.png',
-				level: 0
 			},
-			levelOptions: ['零基础入门', '初级水平', '中级水平', '高级水平']
 		}
 	},
 	onShow() {
@@ -122,6 +120,7 @@ export default {
 			};
 			this.studyHours = (this.stats.totalStudyMinutes / 60).toFixed(1);
 			this.userProfile = { nickname: '英语学习者', avatar: '/static/logo.png', level: 0, ...(profile || {}) };
+			if (!this.userProfile.avatar || this.userProfile.avatar === '/static/default-avatar.png') this.userProfile.avatar = '/static/logo.png';
 			this.loading = false;
 		},
 		getLocalData() {

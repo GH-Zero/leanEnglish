@@ -1,7 +1,34 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-function chinaDate(date = new Date()) {
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const { sign } = require('../auth');
+
+router.post('/wechat-login', async (req, res) => {
+  try {
+    const code = String(req.body.code || '').trim();
+    const appId = process.env.WECHAT_APP_ID || '';
+    const appSecret = process.env.WECHAT_APP_SECRET || '';
+    if (!code) return res.status(400).json({ code: 400, message: '缺少微信登录凭证' });
+    if (!appId || !appSecret || appId === 'touristappid') return res.status(503).json({ code: 503, message: '服务器尚未配置真实微信 AppID 和 AppSecret' });
+    const url = `https://api.weixin.qq.com/sns/jscode2session?appid=${encodeURIComponent(appId)}&secret=${encodeURIComponent(appSecret)}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
+    const response = await fetch(url);
+    const session = await response.json();
+    if (!response.ok || session.errcode || !session.openid) return res.status(401).json({ code: 401, message: session.errmsg || '微信登录校验失败' });
+    await db.prepare(`INSERT INTO users (openid,nickname,avatar) VALUES (?,?,?) ON DUPLICATE KEY UPDATE updated_at=CURRENT_TIMESTAMP`).run(session.openid, '英语学习者', '/static/logo.png');
+    const user = await db.prepare('SELECT * FROM users WHERE openid=?').get(session.openid);
+    await db.prepare('INSERT IGNORE INTO learning_stats (user_id) VALUES (?)').run(user.id);
+    await db.prepare('INSERT IGNORE INTO streak_data (user_id) VALUES (?)').run(user.id);
+    await db.prepare('INSERT IGNORE INTO learning_settings (user_id) VALUES (?)').run(user.id);
+    const token = sign({ userId: user.id, openid: session.openid, exp: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+    res.json({ code: 0, data: { token, user }, message: '微信登录成功' });
+  } catch (error) {
+    console.error('微信登录失败:', error);
+    res.status(500).json({ code: 500, message: '微信登录服务异常' });
+  }
+});function chinaDate(date = new Date()) {
 	return new Intl.DateTimeFormat('en-CA', {
 		timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
 	}).format(date);
@@ -29,6 +56,26 @@ function calculateStreaks(studyDates) {
 }
 
 
+router.post('/profile/avatar', async (req, res) => {
+	try {
+		const userId = parseInt(req.body.userId, 10) || 1;
+		const match = String(req.body.image || '').match(/^data:image\/(jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+		if (!match) return res.status(400).json({ code: 400, message: '头像数据无效' });
+		const buffer = Buffer.from(match[2], 'base64');
+		if (!buffer.length || buffer.length > 4 * 1024 * 1024) return res.status(400).json({ code: 400, message: '头像不能超过4MB' });
+		const extension = match[1] === 'jpeg' ? 'jpg' : match[1];
+		const directory = path.join(__dirname, '..', 'uploads', 'avatars');
+		fs.mkdirSync(directory, { recursive: true });
+		const filename = `user-${userId}-${crypto.randomBytes(8).toString('hex')}.${extension}`;
+		fs.writeFileSync(path.join(directory, filename), buffer);
+		const avatar = `${req.protocol}://${req.get('host')}/uploads/avatars/${filename}`;
+		await db.prepare('UPDATE users SET avatar = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(avatar, userId);
+		res.json({ code: 0, data: { avatar }, message: '头像更新成功' });
+	} catch (error) {
+		console.error('上传头像失败:', error);
+		res.status(500).json({ code: 500, message: '头像上传失败' });
+	}
+});
 // 获取用户信息
 router.get('/profile', async (req, res) => {
 	try {

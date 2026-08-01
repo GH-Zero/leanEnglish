@@ -37,6 +37,24 @@ router.get('/progress', async (req, res) => {
 	}
 });
 
+router.post('/progress/start', async (req, res) => {
+	try {
+		const userId = parseInt(req.body.userId, 10) || 1;
+		const grammarId = Number(req.body.grammar_id);
+		if (!grammarId) return res.status(400).json({ code: 400, message: '缺少语法知识点' });
+		const point = await db.prepare('SELECT id FROM grammar_points WHERE id = ?').get(grammarId);
+		if (!point) return res.status(404).json({ code: 404, message: '语法知识点不存在' });
+		const existing = await db.prepare('SELECT mastered FROM grammar_progress WHERE user_id = ? AND grammar_id = ?').get(userId, grammarId);
+		const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+		await db.prepare(`INSERT INTO grammar_progress (user_id, grammar_id, status, score, attempts, total_questions, correct_answers, last_score, mastered, last_practice_date)
+			VALUES (?, ?, '学习中', 0, 0, 0, 0, 0, 0, ?)
+			ON DUPLICATE KEY UPDATE status=IF(mastered=1,status,'学习中'), last_practice_date=VALUES(last_practice_date), updated_at=CURRENT_TIMESTAMP`).run(userId, grammarId, today);
+		res.json({ code: 0, data: { grammarId, status: existing?.mastered === 1 ? '已掌握' : '学习中', mastered: existing?.mastered === 1, started: true } });
+	} catch (error) {
+		console.error('记录语法开始学习失败:', error);
+		res.status(500).json({ code: 500, message: '服务器错误' });
+	}
+});
 router.post('/progress', async (req, res) => {
 	try {
 		const userId = parseInt(req.body.userId, 10) || 1;
@@ -46,7 +64,6 @@ router.post('/progress', async (req, res) => {
 		if (!grammarId || !Number.isInteger(totalQuestions) || totalQuestions <= 0 || !Number.isInteger(correctCount)) {
 			return res.status(400).json({ code: 400, message: '缺少有效的语法练习结果' });
 		}
-
 		const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 		const existing = await db.prepare('SELECT * FROM grammar_progress WHERE user_id = ? AND grammar_id = ?').get(userId, grammarId);
 		const attempts = Number(existing?.attempts || 0) + 1;

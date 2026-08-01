@@ -35,7 +35,7 @@ const schemaStatements = [
     id INT PRIMARY KEY AUTO_INCREMENT,
     openid VARCHAR(100) UNIQUE NOT NULL,
     nickname VARCHAR(100) DEFAULT '英语学习者',
-    avatar VARCHAR(500) DEFAULT '/static/default-avatar.png',
+    avatar VARCHAR(500) DEFAULT '/static/logo.png',
     level INT DEFAULT 0,
     goal INT DEFAULT 0,
     study_duration INT DEFAULT 30,
@@ -285,6 +285,33 @@ async function ensureWordSchema() {
     await pool.query('ALTER TABLE words ADD INDEX idx_words_frequency_rank (frequency_rank)');
   }
 }
+async function ensureShadowSentenceSchema() {
+  const [columns] = await pool.query('SHOW COLUMNS FROM shadow_sentences');
+  const names = new Set(columns.map(column => column.Field));
+  if (!names.has('category')) await pool.query("ALTER TABLE shadow_sentences ADD COLUMN category VARCHAR(30) DEFAULT '其他' AFTER tag");
+  if (!names.has('frequency_rank')) await pool.query('ALTER TABLE shadow_sentences ADD COLUMN frequency_rank INT NULL AFTER category');
+  if (!names.has('source')) await pool.query("ALTER TABLE shadow_sentences ADD COLUMN source VARCHAR(30) DEFAULT 'manual' AFTER frequency_rank");
+}
+async function ensureShadowSentenceBank() {
+  const { buildShadowSentenceBank } = require('./shadow-sentence-bank');
+  const bank = buildShadowSentenceBank();
+  const normalized = new Set();
+  for (const item of bank) {
+    const key = String(item.text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    if (!key || !String(item.chinese || '').trim() || normalized.has(key)) throw new Error('跟读题库存在空内容或重复句子');
+    normalized.add(key);
+  }
+  if (bank.length !== 600) throw new Error(`跟读题库数量异常：${bank.length}`);
+  await pool.query(`DELETE duplicate FROM shadow_sentences duplicate INNER JOIN shadow_sentences original ON LOWER(TRIM(duplicate.text)) = LOWER(TRIM(original.text)) AND duplicate.id > original.id`);
+  const [indexes] = await pool.query('SHOW INDEX FROM shadow_sentences');
+  if (!indexes.some(index => index.Key_name === 'unique_shadow_text')) await pool.query('ALTER TABLE shadow_sentences ADD UNIQUE INDEX unique_shadow_text (text(255))');
+  for (let offset = 0; offset < bank.length; offset += 100) {
+    const batch = bank.slice(offset, offset + 100);
+    const placeholders = batch.map(() => '(?,?,?,?,?,?,?)').join(',');
+    const values = batch.flatMap((item, index) => [item.text, item.chinese, item.level, item.tag, item.category, item.source, 1000 + offset + index]);
+    await pool.query(`INSERT INTO shadow_sentences (text,chinese,level,tag,category,source,sort_order) VALUES ${placeholders} ON DUPLICATE KEY UPDATE chinese=VALUES(chinese),level=VALUES(level),tag=VALUES(tag),category=VALUES(category),source=VALUES(source)`, values);
+  }
+}
 async function ensureWordStatusSchema() {
   const [columns] = await pool.query('SHOW COLUMNS FROM word_status');
   const columnNames = new Set(columns.map((column) => column.Field));
@@ -405,9 +432,11 @@ async function initDatabase() {
     SELECT user_id, word, wrong_mode, 1, 1, COALESCE(last_review_date, CURDATE()), COALESCE(last_review_date, CURDATE())
     FROM word_status WHERE wrong_mode IS NOT NULL AND wrong_mode <> ''
   `);
-  await ensureLearningSettingsSchema();
+  await pool.query("UPDATE users SET avatar='/static/logo.png' WHERE avatar IS NULL OR avatar='' OR avatar='/static/default-avatar.png'");  await pool.query("UPDATE users SET nickname='英语学习者' WHERE nickname IS NULL OR TRIM(nickname)='' OR nickname REGEXP '^[?]+$'");  await ensureLearningSettingsSchema();
   await ensureWordSchema();
   await ensureWordStatusSchema();
+  await ensureShadowSentenceSchema();
+  await ensureShadowSentenceBank();
   await ensureGrammarQuestionProgressSchema();
   await ensureGrammarProgressSchema();
   await ensureGrammarQuestionBank();
@@ -415,7 +444,7 @@ async function initDatabase() {
 
   await pool.query(
     'INSERT IGNORE INTO users (openid, nickname, avatar) VALUES (?, ?, ?)',
-    ['test_user_001', '英语学习者', '/static/default-avatar.png']
+    ['test_user_001', '英语学习者', '/static/logo.png']
   );
   const [users] = await pool.query('SELECT id FROM users WHERE openid = ?', ['test_user_001']);
   const userId = users[0].id;

@@ -28,17 +28,25 @@ router.get('/list', async (req, res) => {
 // 随机获取跟读句子
 router.get('/random', async (req, res) => {
 	try {
-		const { level, count = 10 } = req.query;
+		const { level, count = 10, exclude = '' } = req.query;
+		const safeCount = Math.max(1, Math.min(30, Number(count) || 10));
+		const excludedIds = String(exclude).split(',').map(Number).filter(id => Number.isInteger(id) && id > 0).slice(0, 1000);
 		let sql = 'SELECT * FROM shadow_sentences';
+		const conditions = [];
 		const params = [];
 
 		if (level !== undefined && level !== '') {
-			sql += ' WHERE level = ?';
+			conditions.push('level = ?');
 			params.push(Number(level));
 		}
+		if (excludedIds.length) {
+			conditions.push(`id NOT IN (${excludedIds.map(() => '?').join(',')})`);
+			params.push(...excludedIds);
+		}
+		if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
 
 		sql += ' ORDER BY RAND() LIMIT ?';
-		params.push(Number(count));
+		params.push(safeCount);
 
 		const sentences = await db.prepare(sql).all(...params);
 		res.json({ code: 0, data: sentences });

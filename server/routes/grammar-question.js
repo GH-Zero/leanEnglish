@@ -12,7 +12,7 @@ function parseAndDedupe(rows, count) {
   const result = [];
   for (const row of rows) {
     const key = `${row.grammar_id || ''}:${normalizeQuestion(row)}`;
-    if (!normalizeQuestion(row) || seen.has(key)) continue;
+    if (!normalizeQuestion(row) || /^choose the correct answer\\s*\\(\\d+\\)\\.?$/i.test(String(row.sentence || '').replace(/^[\\u4e00-\\u9fff]{2,12}[：:]\\s*/, '').trim()) || seen.has(key)) continue;
     seen.add(key);
     try { row.options = JSON.parse(row.options); } catch (_) { row.options = []; }
     if (!Array.isArray(row.options) || row.options.length < 2 || !row.options.includes(row.answer)) continue;

@@ -19,7 +19,7 @@ const STORAGE_KEYS = {
 // 默认数据
 const DEFAULT_DATA = {
 	userProfile: {
-		avatar: '/static/default-avatar.png',
+		avatar: '/static/logo.png',
 		nickname: '英语学习者',
 		goalIndex: 0,
 		levelIndex: 0,

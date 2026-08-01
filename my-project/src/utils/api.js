@@ -6,8 +6,8 @@
 // 服务器地址（开发环境）
 export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
-// 默认用户ID
-const DEFAULT_USER_ID = 1;
+// 当前微信授权用户，未登录时不再回退到公共测试账号
+export function getCurrentUserId() { return Number(uni.getStorageSync('currentUserId') || 0); }
 
 /**
  * 通用请求方法
@@ -19,7 +19,8 @@ export function request(url, method = 'GET', data = {}) {
 			method: method,
 			data: data,
 			header: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json; charset=utf-8',
+				'Authorization': uni.getStorageSync('authToken') ? ('Bearer ' + uni.getStorageSync('authToken')) : ''
 			},
 			success: (res) => {
 				if (res.statusCode === 200 && res.data.code === 0) {
@@ -40,68 +41,95 @@ export function request(url, method = 'GET', data = {}) {
 	});
 }
 
+export function wechatLogin() {
+	return new Promise((resolve, reject) => {
+		// #ifdef MP-WEIXIN
+		wx.login({
+			timeout: 10000,
+			success(loginResult) {
+				if (!loginResult.code) return reject(new Error('未获取到微信登录凭证'));
+				uni.request({
+					url: BASE_URL + '/user/wechat-login', method: 'POST',
+					header: { 'Content-Type': 'application/json; charset=utf-8' }, data: { code: loginResult.code },
+					success(response) {
+						if (response.statusCode !== 200 || response.data?.code !== 0) return reject(new Error(response.data?.message || '微信授权登录失败'));
+						const result = response.data.data || {};
+						uni.setStorageSync('authToken', result.token || '');
+						uni.setStorageSync('currentUserId', Number(result.user?.id || 0));
+						uni.setStorageSync('userProfile', result.user || {});
+						resolve(result.user);
+					}, fail: () => reject(new Error('无法连接微信登录服务'))
+				});
+			}, fail: () => reject(new Error('微信登录凭证获取失败'))
+		});
+		// #endif
+		// #ifndef MP-WEIXIN
+		reject(new Error('请在微信小程序中完成授权登录'));
+		// #endif
+	});
+}
 // ==================== 用户相关 ====================
 
 /**
  * 获取用户信息
  */
-export function getUserProfile(userId = DEFAULT_USER_ID) {
+export function getUserProfile(userId = getCurrentUserId()) {
 	return request(`/user/profile?userId=${userId}`);
 }
 
 /**
  * 更新用户信息
  */
-export function updateUserProfile(data, userId = DEFAULT_USER_ID) {
+export function updateUserProfile(data, userId = getCurrentUserId()) {
 	return request('/user/profile', 'PUT', { ...data, userId });
 }
 
 /**
  * 获取学习统计
  */
-export function getLearningStats(userId = DEFAULT_USER_ID) {
+export function getLearningStats(userId = getCurrentUserId()) {
 	return request(`/user/stats?userId=${userId}`);
 }
 
 /**
  * 增加单词学习统计
  */
-export function updateWordStats(count = 1, isCorrect = true, userId = DEFAULT_USER_ID) {
+export function updateWordStats(count = 1, isCorrect = true, userId = getCurrentUserId()) {
 	return request('/user/stats/word', 'POST', { count, isCorrect, userId });
 }
 
 /**
  * 增加语法学习统计
  */
-export function updateGrammarStats(count = 1, isCorrect = true, userId = DEFAULT_USER_ID) {
+export function updateGrammarStats(count = 1, isCorrect = true, userId = getCurrentUserId()) {
 	return request('/user/stats/grammar', 'POST', { count, isCorrect, userId });
 }
 
 /**
  * 增加音标学习统计
  */
-export function updatePhoneticStats(count = 1, userId = DEFAULT_USER_ID) {
+export function updatePhoneticStats(count = 1, userId = getCurrentUserId()) {
 	return request('/user/stats/phonetic', 'POST', { count, userId });
 }
 
 /**
  * 增加口语练习统计
  */
-export function updateSpeakStats(count = 1, userId = DEFAULT_USER_ID) {
+export function updateSpeakStats(count = 1, userId = getCurrentUserId()) {
 	return request('/user/stats/speak', 'POST', { count, userId });
 }
 
 /**
  * 更新学习时长
  */
-export function updateStudyTime(minutes = 1, userId = DEFAULT_USER_ID) {
+export function updateStudyTime(minutes = 1, userId = getCurrentUserId()) {
 	return request('/user/stats/study-time', 'POST', { minutes, userId });
 }
 
 /**
  * 获取连续学习数据
  */
-export function getStreakData(userId = DEFAULT_USER_ID) {
+export function getStreakData(userId = getCurrentUserId()) {
 	return request(`/user/streak?userId=${userId}`);
 }
 
@@ -110,30 +138,30 @@ export function getStreakData(userId = DEFAULT_USER_ID) {
 /**
  * 获取单词状态
  */
-export function getWordStatus(userId = DEFAULT_USER_ID) {
+export function getWordStatus(userId = getCurrentUserId()) {
 	return request(`/word/status?userId=${userId}`);
 }
 
 /**
  * 标记单词为认识
  */
-export function markWordAsKnown(word, mode, userId = DEFAULT_USER_ID) {
+export function markWordAsKnown(word, mode, userId = getCurrentUserId()) {
 	return request('/word/status/known', 'POST', { word, mode, userId });
 }
 
 /**
  * 标记单词为不认识
  */
-export function markWordAsUnknown(word, mode, userId = DEFAULT_USER_ID) {
+export function markWordAsUnknown(word, mode, userId = getCurrentUserId()) {
 	return request('/word/status/unknown', 'POST', { word, mode, userId });
 }
 
-export function getWrongWords(mode = '', userId = DEFAULT_USER_ID) {
+export function getWrongWords(mode = '', userId = getCurrentUserId()) {
 	const modeQuery = mode ? `&mode=${encodeURIComponent(mode)}` : '';
 	return request(`/words/wrong?userId=${userId}&limit=100${modeQuery}`);
 }
 
-export function clearWrongWord(word, mode = '', userId = DEFAULT_USER_ID) {
+export function clearWrongWord(word, mode = '', userId = getCurrentUserId()) {
 	return request('/word/status/clear-wrong', 'POST', { word, mode, userId });
 }
 // ==================== 语法相关 ====================
@@ -141,14 +169,14 @@ export function clearWrongWord(word, mode = '', userId = DEFAULT_USER_ID) {
 /**
  * 获取语法进度
  */
-export function getGrammarProgress(userId = DEFAULT_USER_ID) {
+export function getGrammarProgress(userId = getCurrentUserId()) {
 	return request(`/grammar/progress?userId=${userId}`);
 }
 
 /**
  * 更新语法进度
  */
-export function updateGrammarProgress(grammarId, status, score, userId = DEFAULT_USER_ID) {
+export function updateGrammarProgress(grammarId, status, score, userId = getCurrentUserId()) {
 	return request('/grammar/progress', 'POST', { grammar_id: grammarId, status, score, userId });
 }
 
@@ -157,14 +185,14 @@ export function updateGrammarProgress(grammarId, status, score, userId = DEFAULT
 /**
  * 获取音标进度
  */
-export function getPhoneticProgress(userId = DEFAULT_USER_ID) {
+export function getPhoneticProgress(userId = getCurrentUserId()) {
 	return request(`/phonetic/progress?userId=${userId}`);
 }
 
 /**
  * 更新音标进度
  */
-export function updatePhoneticProgress(phoneticId, score, userId = DEFAULT_USER_ID) {
+export function updatePhoneticProgress(phoneticId, score, userId = getCurrentUserId()) {
 	return request('/phonetic/progress', 'POST', { phonetic_id: phoneticId, score, userId });
 }
 
@@ -173,21 +201,21 @@ export function updatePhoneticProgress(phoneticId, score, userId = DEFAULT_USER_
 /**
  * 获取对话历史
  */
-export function getDialogueHistory(userId = DEFAULT_USER_ID) {
+export function getDialogueHistory(userId = getCurrentUserId()) {
 	return request(`/dialogue/history?userId=${userId}`);
 }
 
 /**
  * 保存对话记录
  */
-export function saveDialogueHistory(data, userId = DEFAULT_USER_ID) {
+export function saveDialogueHistory(data, userId = getCurrentUserId()) {
 	return request('/dialogue/history', 'POST', { ...data, userId });
 }
 
 /**
  * 清空对话历史
  */
-export function clearDialogueHistory(userId = DEFAULT_USER_ID) {
+export function clearDialogueHistory(userId = getCurrentUserId()) {
 	return request('/dialogue/history', 'DELETE', { userId });
 }
 
@@ -196,7 +224,7 @@ export function clearDialogueHistory(userId = DEFAULT_USER_ID) {
 /**
  * 获取学习统计数据
  */
-export function getStudyStatistics(userId = DEFAULT_USER_ID) {
+export function getStudyStatistics(userId = getCurrentUserId()) {
 	return request(`/statistics?userId=${userId}`);
 }
 
@@ -205,7 +233,7 @@ export function getStudyStatistics(userId = DEFAULT_USER_ID) {
 /**
  * 获取成就数据
  */
-export function getAchievements(userId = DEFAULT_USER_ID) {
+export function getAchievements(userId = getCurrentUserId()) {
 	return request(`/achievement?userId=${userId}`);
 }
 
@@ -214,18 +242,18 @@ export function getAchievements(userId = DEFAULT_USER_ID) {
 /**
  * 获取学习设置
  */
-export function getSettings(userId = DEFAULT_USER_ID) {
+export function getSettings(userId = getCurrentUserId()) {
 	return request(`/settings?userId=${userId}`);
 }
 
 /**
  * 更新学习设置
  */
-export function updateSettings(data, userId = DEFAULT_USER_ID) {
+export function updateSettings(data, userId = getCurrentUserId()) {
 	return request('/settings', 'PUT', { ...data, userId });
 }
 
-export function resetLearningProgress(userId = DEFAULT_USER_ID) {
+export function resetLearningProgress(userId = getCurrentUserId()) {
 	return request('/settings/progress', 'DELETE', { userId });
 }
 
@@ -236,6 +264,13 @@ export function resetLearningProgress(userId = DEFAULT_USER_ID) {
  */
 export function evaluateSpeech(audioBase64, word, category = 'read_word', audioFormat = 'mp3') {
 	return request('/speech/evaluate', 'POST', { audioBase64, word, category, audioFormat });
+}
+
+export function uploadUserAvatar(image, userId = getCurrentUserId()) {
+	return request('/user/profile/avatar', 'POST', { image, userId });
+}
+export function transcribeSpeech(audioBase64, audioFormat = 'mp3') {
+	return request('/speech/transcribe', 'POST', { audioBase64, audioFormat });
 }
 
 export default {

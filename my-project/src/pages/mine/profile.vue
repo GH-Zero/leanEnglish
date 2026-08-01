@@ -1,336 +1,113 @@
 <template>
-	<view class="container">
-		<view class="header">
-			<text class="title">个人信息</text>
-			<text class="subtitle">管理你的账户信息</text>
-		</view>
+  <view class="page">
+    <view class="hero">
+      <text class="title">个人信息</text>
+      <text class="subtitle">头像和昵称将同步显示在“我的”页面</text>
+    </view>
 
-		<view class="avatar-section">
-			<view class="avatar-wrapper" @click="changeAvatar">
-				<image class="avatar" :src="avatar" mode="aspectFill"></image>
-				<view class="avatar-edit">
-					<text class="edit-icon">📷</text>
-				</view>
-			</view>
-		</view>
+    <view class="profile-card">
+      <button class="avatar-button" open-type="chooseAvatar" @chooseavatar="chooseWechatAvatar">
+        <image class="avatar" :src="avatar" mode="aspectFill" @error="useDefaultAvatar" />
+        <view class="camera">📷</view>
+      </button>
+      <text class="avatar-tip">点击选择微信头像</text>
 
-		<view class="section">
-			<text class="section-title">基本信息</text>
-			<view class="info-list">
-				<view class="info-item">
-					<text class="info-label">昵称</text>
-					<view class="info-value">
-						<input class="info-input" v-model="nickname" placeholder="请输入昵称" @blur="saveProfile" />
-						<text class="edit-icon">›</text>
-					</view>
-				</view>
-				<view class="info-item">
-					<text class="info-label">学习目标</text>
-					<picker :range="goalOptions" :value="goalIndex" @change="changeGoal">
-						<view class="picker-value">
-							<text class="value-text">{{ goalOptions[goalIndex] }}</text>
-							<text class="picker-arrow">›</text>
-						</view>
-					</picker>
-				</view>
-				<view class="info-item">
-					<text class="info-label">英语水平</text>
-					<picker :range="levelOptions" :value="levelIndex" @change="changeLevel">
-						<view class="picker-value">
-							<text class="value-text">{{ levelOptions[levelIndex] }}</text>
-							<text class="picker-arrow">›</text>
-						</view>
-					</picker>
-				</view>
-			</view>
-		</view>
+      <view class="divider" />
+      <view class="nickname-row">
+        <text class="label">微信昵称</text>
+        <input
+          class="nickname-input"
+          type="nickname"
+          v-model="nickname"
+          maxlength="24"
+          placeholder="选择或输入微信昵称"
+          @confirm="saveNickname"
+        />
+      </view>
+      <button class="save-button" :disabled="saving || !canSaveNickname" @click="saveNickname">
+        {{ saving ? '保存中…' : '保存昵称' }}
+      </button>
+    </view>
 
-		<view class="section">
-			<text class="section-title">学习偏好</text>
-			<view class="info-list">
-				<view class="info-item">
-					<text class="info-label">每日学习时长</text>
-					<picker :range="durationOptions" :value="durationIndex" @change="changeDuration">
-						<view class="picker-value">
-							<text class="value-text">{{ durationOptions[durationIndex] }}</text>
-							<text class="picker-arrow">›</text>
-						</view>
-					</picker>
-				</view>
-				<view class="info-item">
-					<text class="info-label">学习重点</text>
-					<picker :range="focusOptions" :value="focusIndex" @change="changeFocus">
-						<view class="picker-value">
-							<text class="value-text">{{ focusOptions[focusIndex] }}</text>
-							<text class="picker-arrow">›</text>
-						</view>
-					</picker>
-				</view>
-			</view>
-		</view>
-
-		<view class="section">
-			<text class="section-title">账户操作</text>
-			<view class="info-list">
-				<view class="info-item" @click="exportData">
-					<text class="info-label">导出学习数据</text>
-					<view class="info-value">
-						<text class="picker-arrow">›</text>
-					</view>
-				</view>
-				<view class="info-item" @click="logout">
-					<text class="info-label" style="color: #E74C3C;">退出登录</text>
-					<view class="info-value">
-						<text class="picker-arrow">›</text>
-					</view>
-				</view>
-			</view>
-		</view>
-	</view>
+    <view class="privacy-tip">
+      <text class="privacy-title">资料说明</text>
+      <text class="privacy-text">微信要求头像和昵称由你主动选择。资料仅用于本小程序内的个人展示和学习记录。</text>
+    </view>
+  </view>
 </template>
 
 <script>
-import { getUserProfile, updateUserProfile } from '@/utils/api.js';
+import { getUserProfile, updateUserProfile, uploadUserAvatar } from '@/utils/api.js';
 export default {
-	data() {
-		return {
-			avatar: '/static/logo.png',
-			nickname: '英语学习者',
-			goalOptions: ['日常交流', '考试备考', '工作需要', '兴趣爱好'],
-			goalIndex: 0,
-			levelOptions: ['零基础', '初级', '中级', '高级'],
-			levelIndex: 0,
-			durationOptions: ['15分钟', '30分钟', '45分钟', '60分钟'],
-			durationIndex: 1,
-			focusOptions: ['均衡发展', '口语为主', '词汇为主', '语法为主'],
-			focusIndex: 0
-		}
-	},
-	methods: {
-		changeAvatar() {
-			uni.chooseImage({
-				count: 1,
-				sizeType: ['compressed'],
-				sourceType: ['album', 'camera'],
-				success: (res) => {
-					this.avatar = res.tempFilePaths[0];
-					this.saveProfile();
-				}
-			});
-		},
-		changeGoal(e) {
-			this.goalIndex = e.detail.value;
-			this.saveProfile();
-		},
-		changeLevel(e) {
-			this.levelIndex = e.detail.value;
-			this.saveProfile();
-		},
-		changeDuration(e) {
-			this.durationIndex = e.detail.value;
-			this.saveProfile();
-		},
-		changeFocus(e) {
-			this.focusIndex = e.detail.value;
-			this.saveProfile();
-		},
-		async saveProfile() {
-			const profile = {
-				avatar: this.avatar,
-				nickname: this.nickname.trim() || '英语学习者',
-				goalIndex: Number(this.goalIndex),
-				levelIndex: Number(this.levelIndex),
-				durationIndex: Number(this.durationIndex),
-				focusIndex: Number(this.focusIndex)
-			};
-			uni.setStorageSync('userProfile', profile);
-			try {
-				const durations = [15, 30, 45, 60];
-				const updated = await updateUserProfile({
-					nickname: profile.nickname,
-					avatar: profile.avatar,
-					goal: profile.goalIndex,
-					level: profile.levelIndex,
-					study_duration: durations[profile.durationIndex] || 30,
-					focus: profile.focusIndex
-				});
-				uni.setStorageSync('userProfile', { ...profile, ...updated, levelIndex: Number(updated.level ?? profile.levelIndex) });
-				uni.showToast({ title: '已保存', icon: 'success' });
-			} catch (error) {
-				console.error('保存个人信息失败:', error);
-				uni.showToast({ title: '已保存到本机，云端同步失败', icon: 'none' });
-			}
-		},
-		async loadProfile() {
-			let profile = uni.getStorageSync('userProfile') || {};
-			try { profile = { ...profile, ...(await getUserProfile()) }; } catch (error) { console.error('加载个人信息失败:', error); }
-			this.avatar = profile.avatar || '/static/logo.png';
-			this.nickname = profile.nickname || '英语学习者';
-			this.goalIndex = Number(profile.goal ?? profile.goalIndex ?? 0);
-			this.levelIndex = Number(profile.level ?? profile.levelIndex ?? 0);
-			const duration = Number(profile.study_duration || 30);
-			this.durationIndex = Math.max(0, [15, 30, 45, 60].indexOf(duration));
-			this.focusIndex = Number(profile.focus ?? profile.focusIndex ?? 0);
-		},
-		exportData() {
-			uni.showModal({
-				title: '导出数据',
-				content: '确定要导出学习数据吗？',
-				success: (res) => {
-					if (res.confirm) {
-						const data = {
-							profile: uni.getStorageSync('userProfile'),
-							wordStatus: uni.getStorageSync('wordStatus'),
-							grammarProgress: uni.getStorageSync('grammarProgress'),
-							exportTime: new Date().toISOString()
-						};
-						console.log('导出数据:', data);
-						uni.showToast({ title: '导出成功', icon: 'success' });
-					}
-				}
-			});
-		},
-		logout() {
-			uni.showModal({
-				title: '退出登录',
-				content: '确定要退出登录吗？',
-				success: (res) => {
-					if (res.confirm) {
-						uni.reLaunch({
-							url: '/pages/home/index'
-						});
-					}
-				}
-			});
-		}
-	},
-	onLoad() {
-		this.loadProfile();
-	}
-}
+  data() {
+    return { avatar: '/static/logo.png', nickname: '英语学习者', savedNickname: '英语学习者', saving: false };
+  },
+  computed: {
+    canSaveNickname() {
+      const value = String(this.nickname || '').trim();
+      return value.length > 0 && value !== this.savedNickname;
+    }
+  },
+  onLoad() { this.loadProfile(); },
+  methods: {
+    useDefaultAvatar() { this.avatar = '/static/logo.png'; },
+    normalizeAvatar(value) {
+      return !value || value === '/static/default-avatar.png' ? '/static/logo.png' : value;
+    },
+    async loadProfile() {
+      let profile = uni.getStorageSync('userProfile') || {};
+      try { profile = { ...profile, ...(await getUserProfile()) }; }
+      catch (error) { console.error('加载个人信息失败:', error); }
+      this.avatar = this.normalizeAvatar(profile.avatar);
+      this.nickname = String(profile.nickname || '英语学习者').trim();
+      this.savedNickname = this.nickname;
+    },
+    async chooseWechatAvatar(event) {
+      const tempPath = event.detail?.avatarUrl;
+      if (!tempPath) return;
+      uni.showLoading({ title: '正在保存头像' });
+      try {
+        const base64 = await new Promise((resolve, reject) => uni.getFileSystemManager().readFile({
+          filePath: tempPath, encoding: 'base64', success: result => resolve(result.data), fail: reject
+        }));
+        const suffix = String(tempPath).split('.').pop().toLowerCase();
+        const mime = suffix === 'png' ? 'png' : (suffix === 'webp' ? 'webp' : 'jpeg');
+        const result = await uploadUserAvatar(`data:image/${mime};base64,${base64}`);
+        this.avatar = this.normalizeAvatar(result?.avatar);
+        this.syncLocalProfile();
+        uni.$emit('user-profile:updated', { avatar: this.avatar, nickname: this.nickname });
+        uni.showToast({ title: '头像已更新', icon: 'success' });
+      } catch (error) {
+        console.error('保存微信头像失败:', error);
+        uni.showToast({ title: error?.message || '头像保存失败', icon: 'none' });
+      } finally { uni.hideLoading(); }
+    },
+    async saveNickname() {
+      const value = String(this.nickname || '').trim();
+      if (!value) return uni.showToast({ title: '请输入昵称', icon: 'none' });
+      if (value === this.savedNickname || this.saving) return;
+      this.saving = true;
+      try {
+        const updated = await updateUserProfile({ nickname: value });
+        this.nickname = String(updated?.nickname || value).trim();
+        this.savedNickname = this.nickname;
+        this.avatar = this.normalizeAvatar(updated?.avatar || this.avatar);
+        this.syncLocalProfile(updated);
+        uni.$emit('user-profile:updated', { avatar: this.avatar, nickname: this.nickname });
+        uni.showToast({ title: '昵称已保存', icon: 'success' });
+      } catch (error) {
+        console.error('保存昵称失败:', error);
+        uni.showToast({ title: error?.message || '昵称保存失败', icon: 'none' });
+      } finally { this.saving = false; }
+    },
+    syncLocalProfile(extra = {}) {
+      const previous = uni.getStorageSync('userProfile') || {};
+      uni.setStorageSync('userProfile', { ...previous, ...extra, nickname: this.nickname, avatar: this.avatar });
+    }
+  }
+};
 </script>
 
 <style>
-.container {
-	padding: 20rpx;
-	background-color: #F7F5F0;
-	min-height: 100vh;
-}
-
-.header {
-	text-align: center;
-	padding: 40rpx 0;
-}
-
-.title {
-	font-size: 40rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	display: block;
-}
-
-.subtitle {
-	font-size: 22rpx;
-	color: #7A7A7A;
-	display: block;
-	margin-top: 10rpx;
-}
-
-.avatar-section {
-	display: flex;
-	justify-content: center;
-	margin-bottom: 30rpx;
-}
-
-.avatar-wrapper {
-	position: relative;
-}
-
-.avatar {
-	width: 160rpx;
-	height: 160rpx;
-	border-radius: 80rpx;
-	border: 4rpx solid #FFFFFF;
-	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.2);
-}
-
-.avatar-edit {
-	position: absolute;
-	bottom: 0;
-	right: 0;
-	background-color: #1F3A5F;
-	width: 50rpx;
-	height: 50rpx;
-	border-radius: 25rpx;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.edit-icon {
-	font-size: 24rpx;
-	color: #FFFFFF;
-}
-
-.section {
-	margin-bottom: 30rpx;
-}
-
-.section-title {
-	font-size: 32rpx;
-	font-weight: bold;
-	color: #1F3A5F;
-	margin-bottom: 20rpx;
-	display: block;
-}
-
-.info-list {
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	overflow: hidden;
-	box-shadow: 0 4rpx 8rpx rgba(0,0,0,0.1);
-}
-
-.info-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 30rpx;
-	border-bottom: 1rpx solid #F0F0F0;
-}
-
-.info-label {
-	font-size: 28rpx;
-	color: #333333;
-}
-
-.info-value {
-	display: flex;
-	align-items: center;
-	flex: 1;
-	justify-content: flex-end;
-}
-
-.info-input {
-	text-align: right;
-	font-size: 28rpx;
-	color: #7A7A7A;
-	flex: 1;
-}
-
-.picker-value {
-	display: flex;
-	align-items: center;
-}
-
-.value-text {
-	font-size: 26rpx;
-	color: #7A7A7A;
-	margin-right: 10rpx;
-}
-
-.picker-arrow {
-	font-size: 30rpx;
-	color: #7A7A7A;
-}
+.page{box-sizing:border-box;min-height:100vh;padding:30rpx 24rpx;background:#f7f5f0}.hero{padding:35rpx 8rpx 28rpx;text-align:center}.title{display:block;font-size:40rpx;font-weight:800;color:#1f3a5f}.subtitle{display:block;margin-top:9rpx;font-size:22rpx;color:#87929d}.profile-card{padding:38rpx 28rpx 30rpx;border-radius:24rpx;background:#fff;box-shadow:0 7rpx 22rpx rgba(31,58,95,.08)}.avatar-button{position:relative;width:164rpx;height:164rpx;margin:0 auto;padding:0;border:0;border-radius:50%;background:transparent;line-height:1}.avatar-button:after{border:0}.avatar{width:160rpx;height:160rpx;border:4rpx solid #fff;border-radius:50%;box-shadow:0 5rpx 14rpx rgba(31,58,95,.18)}.camera{position:absolute;right:0;bottom:4rpx;display:flex;align-items:center;justify-content:center;width:48rpx;height:48rpx;border:4rpx solid #fff;border-radius:50%;background:#1f3a5f;font-size:22rpx}.avatar-tip{display:block;margin-top:15rpx;text-align:center;font-size:22rpx;color:#87929d}.divider{height:1rpx;margin:32rpx 0 8rpx;background:#edf0f2}.nickname-row{display:flex;align-items:center;gap:20rpx;padding:20rpx 0}.label{flex-shrink:0;font-size:28rpx;color:#334155}.nickname-input{box-sizing:border-box;flex:1;height:72rpx;padding:0 20rpx;border-radius:14rpx;background:#f6f8fa;text-align:right;font-size:27rpx;color:#1f3a5f}.save-button{height:78rpx;line-height:78rpx;margin-top:14rpx;border:0;border-radius:15rpx;background:#1f3a5f;color:#fff;font-size:28rpx}.save-button:after{border:0}.save-button[disabled]{background:#d9dfe5;color:#929ba4}.privacy-tip{margin-top:22rpx;padding:24rpx;border-radius:18rpx;background:#eef6f5}.privacy-title{display:block;font-size:25rpx;font-weight:700;color:#24655f}.privacy-text{display:block;margin-top:8rpx;font-size:22rpx;line-height:1.6;color:#71807f}
 </style>

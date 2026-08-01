@@ -17,23 +17,42 @@
 
 		<view class="section performance-section">
 			<view class="section-heading"><view><text class="section-title">练习表现</text><text class="section-subtitle">只展示真实完成的数据</text></view></view>
-			<view class="performance-card"><view class="performance-item"><text class="performance-value">{{ totalSpeakPractice }}</text><text class="performance-label">累计跟读</text></view><view class="performance-line"></view><view class="performance-item"><text class="performance-value">{{ todayCompleted }}/3</text><text class="performance-label">今日完成</text></view><view class="performance-line"></view><view class="performance-item"><text class="performance-value">{{ lastScore || '--' }}</text><text class="performance-label">最近评分</text></view></view>
+			<view class="performance-card"><view class="performance-item"><text class="performance-value">{{ totalSpeakPractice }}</text><text class="performance-label">累计练习</text></view><view class="performance-line"></view><view class="performance-item"><text class="performance-value">{{ todayCompleted }}</text><text class="performance-label">今日练习</text></view><view class="performance-line"></view><view class="performance-item"><text class="performance-value">{{ lastScore ? lastScore + '分' : '--' }}</text><text class="performance-label">最近评分</text></view></view>
 		</view>
 	</view>
 </template>
 
 <script>
-import { getLearningStats } from '@/utils/api.js';
+import { getLearningStats, getStudyStatistics, getDialogueHistory, getPhoneticProgress } from '@/utils/api.js';
 export default {
-	data() { return { todayCompleted: 0, lastScore: 0, totalSpeakPractice: 0 }; },
-	onShow() { this.loadDailyProgress(); this.loadSpeakStats(); },
-	methods: {
-		dateKey() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`; },
-		loadDailyProgress() { const saved = uni.getStorageSync('dailySpeakProgress') || {}; if (saved.date === this.dateKey()) { this.todayCompleted = Math.min(3, Number(saved.count || 0)); this.lastScore = Number(saved.lastScore || 0); } else { this.todayCompleted = 0; this.lastScore = 0; uni.setStorageSync('dailySpeakProgress', { date: this.dateKey(), count: 0, lastScore: 0 }); } },
-		async loadSpeakStats() { try { const stats = await getLearningStats(); this.totalSpeakPractice = Number(stats?.total_speak_practice ?? stats?.totalSpeakPractice ?? 0); } catch (_) {} },
-		openShadowPractice() { uni.navigateTo({ url: '/pages/speak/shadow' }); },
-		goToPage(url) { uni.navigateTo({ url }); }
-	}
+ data(){return{todayCompleted:0,lastScore:0,totalSpeakPractice:0}},
+ onShow(){this.loadPerformance()},
+ methods:{
+  dateKey(){const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`},
+  dateTime(value){if(!value)return 0;const parsed=new Date(value).getTime();return Number.isFinite(parsed)?parsed:0},
+  async loadPerformance(){
+   const saved=uni.getStorageSync('dailySpeakProgress')||{};
+   try{
+    const [learning,statistics,history,phonetics]=await Promise.all([
+     getLearningStats().catch(()=>({})),getStudyStatistics().catch(()=>({})),getDialogueHistory().catch(()=>[]),getPhoneticProgress().catch(()=>({}))
+    ]);
+    this.totalSpeakPractice=Number(learning?.total_speak_practice??learning?.totalSpeakPractice??statistics?.speakPractice??0);
+    this.todayCompleted=Number(statistics?.todayRecord?.speak_practiced||0);
+    const candidates=[];
+    if(saved.lastScore){const time=Number(saved.updatedAt||0)||(saved.date?this.dateTime(saved.date+'T00:00:00'):0);candidates.push({score:Number(saved.lastScore),time})}
+    const latestDialogue=(history||[])[0];
+    if(latestDialogue?.average_score)candidates.push({score:Number(latestDialogue.average_score),time:this.dateTime(latestDialogue.created_at)});
+    Object.values(phonetics||{}).forEach(item=>{if(item?.best_score)candidates.push({score:Number(item.best_score),time:this.dateTime((item.last_practice_date||'')+'T00:00:00')})});
+    candidates.sort((a,b)=>b.time-a.time);
+    this.lastScore=candidates.length?Math.round(candidates[0].score):0;
+   }catch(_){
+    this.todayCompleted=saved.date===this.dateKey()?Number(saved.count||0):0;
+    this.lastScore=Number(saved.lastScore||0);
+   }
+  },
+  openShadowPractice(){uni.navigateTo({url:'/pages/speak/shadow'})},
+  goToPage(url){uni.navigateTo({url})}
+ }
 };
 </script>
 

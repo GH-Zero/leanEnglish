@@ -1,5 +1,5 @@
 <script>
-import { updateStudyTime } from '@/utils/api.js'
+import { updateStudyTime, wechatLogin } from '@/utils/api.js'
 import { checkDailyReminder } from '@/utils/notification.js'
 
 const STUDY_ROUTES = [
@@ -9,8 +9,19 @@ const STUDY_ROUTES = [
 ]
 
 export default {
-  onLaunch() {
-    console.log('App Launch')
+  async onLaunch() {
+    uni.addInterceptor('request', { invoke(args) { const token = uni.getStorageSync('authToken'); args.header = { ...(args.header || {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) }; } });
+    // #ifdef MP-WEIXIN
+    uni.showLoading({ title: '微信登录中', mask: true });
+    try {
+      await wechatLogin();
+      uni.$emit('auth:ready');
+    } catch (error) {
+      uni.removeStorageSync('authToken');
+      uni.removeStorageSync('currentUserId');
+      setTimeout(() => uni.showModal({ title: '需要微信授权登录', content: error.message || '登录失败，请稍后重试', showCancel: false, confirmText: '重新登录', success: () => this.loginAgain() }), 200);
+    } finally { uni.hideLoading(); }
+    // #endif
   },
   onShow() {
     this.studySeconds = Number(uni.getStorageSync('pendingStudySeconds') || 0)
@@ -24,6 +35,7 @@ export default {
     this.studyTimer = null
   },
   methods: {
+    async loginAgain() { uni.showLoading({ title: '微信登录中', mask: true }); try { await wechatLogin(); uni.reLaunch({ url: '/pages/home/index' }); } catch (error) { uni.showToast({ title: error.message || '登录失败', icon: 'none' }); } finally { uni.hideLoading(); } },
     isStudyPage() {
       const pages = getCurrentPages()
       const route = pages.length ? pages[pages.length - 1].route : ''

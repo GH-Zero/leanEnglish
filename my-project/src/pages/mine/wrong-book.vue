@@ -61,7 +61,13 @@ export default {
 		grammarTypes(){const counts=new Map();this.stageGrammarItems.forEach(item=>{const type=item.grammarTitle||'其他语法';counts.set(type,(counts.get(type)||0)+1)});return [{value:'all',label:'全部',count:this.stageGrammarItems.length},...[...counts.entries()].map(([value,count])=>({value,label:value,count}))]},
 		filteredGrammar(){return this.grammarType==='all'?this.stageGrammarItems:this.stageGrammarItems.filter(item=>(item.grammarTitle||'其他语法')===this.grammarType)}
 	},
-	onLoad(query={}){this.errorType=query.type==='grammar'?'grammar':'word';this.stageFilter=Number(query.stage||0)},
+	onLoad(query={}){
+		this.errorType=query.type==='grammar'?'grammar':'word';
+		this.stageFilter=Number(query.stage||0);
+		if(query.grammarType){
+			try{this.grammarType=decodeURIComponent(query.grammarType)}catch(_){this.grammarType=query.grammarType}
+		}
+	},
 	onShow(){this.loadData()},
 	methods:{
 		async loadData(){this.loadGrammar();this.loading=true;try{const result=await getWrongWords();this.wordItems=result?.words||[]}catch(error){console.error('加载单词错题失败:',error);this.wordItems=[]}finally{this.loading=false}},

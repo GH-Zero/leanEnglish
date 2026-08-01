@@ -40,6 +40,9 @@ router.post('/history', async (req, res) => {
 			WHERE user_id = ?
 		`).run(userId);
 
+		const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+		await db.prepare(`INSERT INTO daily_records (user_id, date, speak_practiced) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE speak_practiced = speak_practiced + 1`).run(userId, today);
+
 		res.json({ code: 0, data: { id: result.lastInsertRowid }, message: '保存成功' });
 	} catch (error) {
 		console.error('保存对话记录失败:', error);
