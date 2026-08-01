@@ -285,6 +285,15 @@ async function ensureWordSchema() {
     await pool.query('ALTER TABLE words ADD INDEX idx_words_frequency_rank (frequency_rank)');
   }
 }
+async function ensureAdventureSchema() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS adventure_levels (id INT PRIMARY KEY AUTO_INCREMENT,chapter_no INT NOT NULL DEFAULT 1,level_no INT UNIQUE NOT NULL,title VARCHAR(100) NOT NULL,subtitle VARCHAR(200),icon VARCHAR(20) DEFAULT '🗺️',difficulty INT DEFAULT 1,pass_score INT DEFAULT 80,is_boss TINYINT(1) DEFAULT 0,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS user_adventure_progress (id INT PRIMARY KEY AUTO_INCREMENT,user_id INT NOT NULL,level_id INT NOT NULL,status VARCHAR(20) DEFAULT 'not_started',best_score INT DEFAULT 0,stars INT DEFAULT 0,attempts INT DEFAULT 0,passed_at TIMESTAMP NULL,last_attempt_at TIMESTAMP NULL,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY unique_user_level(user_id,level_id),INDEX idx_adventure_user_status(user_id,status)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS adventure_wrong_records (id INT PRIMARY KEY AUTO_INCREMENT,user_id INT NOT NULL,level_id INT NOT NULL,question_key VARCHAR(100),question_type VARCHAR(30),prompt TEXT,user_answer TEXT,correct_answer TEXT,explanation TEXT,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,INDEX idx_adventure_wrong_user_level(user_id,level_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  const levels=[
+    [1,'基础问候','认识常用问候与简单句','👋',1,80,0],[2,'自我介绍','姓名、身份与主系表','🙂',1,80,0],[3,'家庭成员','家庭词汇与物主表达','🏠',1,80,0],[4,'阶段检测','复习前三关核心内容','🧭',1,80,0],[5,'每日活动','高频动作与一般现在时','☀️',2,80,0],[6,'时间表达','时间、日期与常用介词','🕐',2,80,0],[7,'食物饮料','餐饮词汇与数量表达','🍎',2,80,0],[8,'餐厅交流','点餐表达与听力辨义','🍽️',2,80,0],[9,'综合练习','混合检验本章知识','📝',2,80,0],[10,'启程挑战','第一章综合 Boss 关','🏆',3,85,1]
+  ];
+  for(const item of levels)await pool.query(`INSERT INTO adventure_levels(chapter_no,level_no,title,subtitle,icon,difficulty,pass_score,is_boss) VALUES (1,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title),subtitle=VALUES(subtitle),icon=VALUES(icon),difficulty=VALUES(difficulty),pass_score=VALUES(pass_score),is_boss=VALUES(is_boss)`,item);
+}
 async function ensureShadowSentenceSchema() {
   const [columns] = await pool.query('SHOW COLUMNS FROM shadow_sentences');
   const names = new Set(columns.map(column => column.Field));
@@ -435,6 +444,7 @@ async function initDatabase() {
   await pool.query("UPDATE users SET avatar='/static/logo.png' WHERE avatar IS NULL OR avatar='' OR avatar='/static/default-avatar.png'");  await pool.query("UPDATE users SET nickname='英语学习者' WHERE nickname IS NULL OR TRIM(nickname)='' OR nickname REGEXP '^[?]+$'");  await ensureLearningSettingsSchema();
   await ensureWordSchema();
   await ensureWordStatusSchema();
+  await ensureAdventureSchema();
   await ensureShadowSentenceSchema();
   await ensureShadowSentenceBank();
   await ensureGrammarQuestionProgressSchema();

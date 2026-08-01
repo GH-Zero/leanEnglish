@@ -1,3 +1,4 @@
+require('./load-env');
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -19,6 +20,8 @@ const sceneRoutes = require('./routes/scene');
 const shadowRoutes = require('./routes/shadow');
 const grammarQuestionRoutes = require('./routes/grammar-question');
 const grammarPointRoutes = require('./routes/grammar-point');
+const adventureRoutes = require('./routes/adventure');
+const adventureCourseRoutes = require('./routes/adventure-course');
 
 // 创建Express应用
 const app = express();
@@ -52,6 +55,8 @@ app.use('/api/scene', sceneRoutes);
 app.use('/api/shadow', shadowRoutes);
 app.use('/api/grammar-question', grammarQuestionRoutes);
 app.use('/api/grammar-point', grammarPointRoutes);
+app.use('/api/adventure', adventureRoutes);
+app.use('/api/adventure-course', adventureCourseRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

@@ -18,7 +18,10 @@
     {"path":"pages/mine/settings","style":{"navigationBarTitleText":"学习设置"}},
     {"path":"pages/mine/notification","style":{"navigationBarTitleText":"消息提醒"}},
     {"path":"pages/mine/profile","style":{"navigationBarTitleText":"个人信息"}},
-    {"path":"pages/challenge/index","style":{"navigationBarTitleText":"每日闯关"}}
+    {"path":"pages/challenge/index","style":{"navigationBarTitleText":"每日闯关"}},
+    {"path":"pages/adventure/index","style":{"navigationBarTitleText":"成长地图"}},
+    {"path":"pages/adventure/module","style":{"navigationBarTitleText":"模块关卡"}},
+    {"path":"pages/adventure/practice","style":{"navigationBarTitleText":"主线闯关"}}
   ],
   "globalStyle":{"navigationBarTextStyle":"black","navigationBarTitleText":"英语学习小程序","navigationBarBackgroundColor":"#1F3A5F","backgroundColor":"#F7F5F0"},
   "tabBar":{"color":"#7A7A7A","selectedColor":"#1F3A5F","borderStyle":"black","backgroundColor":"#FFFFFF","list":[

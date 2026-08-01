@@ -19,7 +19,7 @@ export default {
     } catch (error) {
       uni.removeStorageSync('authToken');
       uni.removeStorageSync('currentUserId');
-      setTimeout(() => uni.showModal({ title: '需要微信授权登录', content: error.message || '登录失败，请稍后重试', showCancel: false, confirmText: '重新登录', success: () => this.loginAgain() }), 200);
+      setTimeout(() => this.showLoginError(error), 200);
     } finally { uni.hideLoading(); }
     // #endif
   },
@@ -35,8 +35,18 @@ export default {
     this.studyTimer = null
   },
   methods: {
-    async loginAgain() { uni.showLoading({ title: '微信登录中', mask: true }); try { await wechatLogin(); uni.reLaunch({ url: '/pages/home/index' }); } catch (error) { uni.showToast({ title: error.message || '登录失败', icon: 'none' }); } finally { uni.hideLoading(); } },
-    isStudyPage() {
+    showLoginError(error) {
+      const message = error?.message || '登录失败，请稍后重试';
+      const configurationError = Number(error?.statusCode) === 503 || /配置.*AppID|AppSecret|尚未配置/.test(message);
+      if (configurationError) {
+        if (this.configurationNoticeShown) return;
+        this.configurationNoticeShown = true;
+        uni.showModal({ title: '微信登录配置未完成', content: '当前小程序仍使用测试 AppID，管理员配置真实 AppID 和 AppSecret 后即可正常登录。', showCancel: false, confirmText: '我知道了' });
+        return;
+      }
+      uni.showModal({ title: '微信登录失败', content: message, cancelText: '稍后再试', confirmText: '重新登录', success: result => { if (result.confirm) this.loginAgain(); } });
+    },
+    async loginAgain() { uni.showLoading({ title: '微信登录中', mask: true }); try { await wechatLogin(); uni.reLaunch({ url: '/pages/home/index' }); } catch (error) { this.showLoginError(error); } finally { uni.hideLoading(); } },    isStudyPage() {
       const pages = getCurrentPages()
       const route = pages.length ? pages[pages.length - 1].route : ''
       return STUDY_ROUTES.some(prefix => route.startsWith(prefix))

@@ -52,7 +52,7 @@ export function wechatLogin() {
 					url: BASE_URL + '/user/wechat-login', method: 'POST',
 					header: { 'Content-Type': 'application/json; charset=utf-8' }, data: { code: loginResult.code },
 					success(response) {
-						if (response.statusCode !== 200 || response.data?.code !== 0) return reject(new Error(response.data?.message || '微信授权登录失败'));
+						if (response.statusCode !== 200 || response.data?.code !== 0) { const error = new Error(response.data?.message || '微信授权登录失败'); error.statusCode = response.statusCode; error.code = response.data?.code; return reject(error); }
 						const result = response.data.data || {};
 						uni.setStorageSync('authToken', result.token || '');
 						uni.setStorageSync('currentUserId', Number(result.user?.id || 0));

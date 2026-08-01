@@ -1,0 +1,29 @@
+MySQL 数据库和表结构初始化完成
+✅ 服务器已启动，监听端口: 3000
+📡 API地址: http://localhost:3000/api
+💾 数据库: MySQL
+2026-08-01T11:08:57.421Z - GET /api/health
+2026-08-01T11:08:57.792Z - GET /api/adventure-course/level/scene-001-001/questions
+2026-08-01T11:10:15.684Z - GET /api/user/stats?userId=76
+2026-08-01T11:10:15.688Z - GET /api/user/streak?userId=76
+2026-08-01T11:10:15.751Z - GET /api/settings?userId=76
+2026-08-01T11:10:15.824Z - GET /api/settings?userId=76
+2026-08-01T11:10:16.009Z - POST /api/user/wechat-login
+2026-08-01T11:10:19.495Z - GET /api/adventure-course/modules
+2026-08-01T11:10:23.029Z - GET /api/adventure-course/module/scene-001/levels
+2026-08-01T11:10:26.144Z - GET /api/adventure-course/level/scene-001-001/questions
+2026-08-01T11:10:33.450Z - POST /api/adventure-course/level/scene-001-001/submit
+2026-08-01T11:10:36.184Z - GET /api/adventure-course/module/scene-001/levels
+2026-08-01T11:10:41.228Z - GET /api/adventure-course/level/scene-001-001/questions
+2026-08-01T11:10:50.719Z - POST /api/adventure-course/level/scene-001-001/submit
+2026-08-01T11:10:52.266Z - GET /api/adventure-course/level/scene-001-002/questions
+2026-08-01T11:10:56.600Z - GET /api/adventure-course/module/scene-001/levels
+2026-08-01T11:11:02.640Z - GET /api/adventure-course/level/scene-001-002/questions
+2026-08-01T11:11:05.978Z - GET /api/adventure-course/module/scene-001/levels
+2026-08-01T11:12:45.249Z - GET /api/adventure-course/module/scene-001/levels
+2026-08-01T11:12:45.324Z - POST /api/user/wechat-login
+2026-08-01T11:12:45.361Z - GET /api/settings?userId=76
+2026-08-01T11:13:10.764Z - GET /api/user/stats?userId=76
+2026-08-01T11:13:10.798Z - GET /api/user/streak?userId=76
+2026-08-01T11:13:10.834Z - GET /api/settings?userId=76
+2026-08-01T11:13:13.551Z - GET /api/adventure-course/modules
