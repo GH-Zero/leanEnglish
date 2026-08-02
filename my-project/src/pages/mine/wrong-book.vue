@@ -20,14 +20,14 @@
 					<view v-for="mode in wordModes" :key="mode.value" class="mode-tab" :class="{ active: wordMode === mode.value }" @click="wordMode = mode.value">{{ mode.label }} {{ modeCount(mode.value) }}</view>
 				</view>
 			</scroll-view>
-			<view class="loading-list" v-if="loading"><view class="skeleton-card" v-for="index in 3" :key="index"><view class="skeleton-line wide"></view><view class="skeleton-line"></view><view class="skeleton-line short"></view></view></view>
+			<animated-loading v-if="loading" text="正在加载错题"></animated-loading>
 			<view v-if="!loading" v-for="item in filteredWords" :key="item.word + '-' + item.wrong_mode" class="card">
 				<view class="word-line"><text class="word">{{ item.word }}</text><text class="phonetic">{{ item.phonetic_us || item.phonetic_uk }}</text></view>
 				<text class="meaning">{{ item.chinese || '暂无释义' }}</text>
 				<view class="meta"><text class="tag">{{ modeLabel(item.wrong_mode) }}</text><text>错误{{ item.error_count || 1 }}次 · {{ item.last_error_date || '' }}</text></view>
 				<view class="actions"><button class="practice" @click="practiceWord(item)">重新练习</button></view>
 			</view>
-			<view class="empty" v-if="!loading && !filteredWords.length"><text class="empty-icon">🎉</text><text>该类型暂无单词错题</text></view>
+			<animated-empty v-if="!loading && !filteredWords.length" icon="🎉" text="该类型暂无单词错题"></animated-empty>
 		</template>
 
 		<template v-else>
@@ -42,15 +42,16 @@
 				<view class="meta"><text class="tag grammar-tag">语法错误</text><text v-if="item.count > 1">记录{{ item.count }}次</text></view>
 				<view class="actions"><button class="practice" @click="practiceGrammar(item)">重新练习</button></view>
 			</view>
-			<view class="empty" v-if="!filteredGrammar.length"><text class="empty-icon">🎉</text><text>暂无语法错题</text></view>
+			<animated-empty v-if="!filteredGrammar.length" icon="🎉" text="暂无语法错题"></animated-empty>
 		</template>
 	</view>
 </template>
 <script>
 import { getWrongWords } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 export default {
-	data(){return{
-		errorType:'word',wordMode:'all',grammarType:'all',stageFilter:0,wordItems:[],wordTotal:0,wordModeCounts:{listen:0,read:0,write:0,speak:0},grammarItems:[],loading:false,
+	data(){const firstLoad=isFirstLoad('pages/mine/wrong-book');return{
+		errorType:'word',wordMode:'all',grammarType:'all',stageFilter:0,wordItems:[],wordTotal:0,wordModeCounts:{listen:0,read:0,write:0,speak:0},grammarItems:[],firstLoad,loading:firstLoad,
 		wordModes:[
 			{value:'all',label:'全部'},{value:'listen',label:'听音'},{value:'read',label:'辨义'},
 			{value:'write',label:'拼写'},{value:'speak',label:'发音'}
@@ -71,7 +72,7 @@ export default {
 	},
 	onShow(){this.loadData()},
 	methods:{
-		async loadData(){this.loadGrammar();this.loading=true;try{const result=await getWrongWords();this.wordItems=result?.words||[];this.wordTotal=Number(result?.total??this.wordItems.length);this.wordModeCounts=result?.byMode||{listen:0,read:0,write:0,speak:0}}catch(error){console.error('加载单词错题失败:',error);this.wordItems=[];this.wordTotal=0}finally{this.loading=false}},
+		async loadData(){this.loadGrammar();if(this.firstLoad){this.loading=true;this.firstLoad=false}try{const result=await getWrongWords();this.wordItems=result?.words||[];this.wordTotal=Number(result?.total??this.wordItems.length);this.wordModeCounts=result?.byMode||{listen:0,read:0,write:0,speak:0}}catch(error){console.error('加载单词错题失败:',error);this.wordItems=[];this.wordTotal=0}finally{this.loading=false}},
 		loadGrammar(){
 			const previousTabs=this.grammarTypes.map(item=>item.value);
 			const previousIndex=Math.max(0,previousTabs.indexOf(this.grammarType));

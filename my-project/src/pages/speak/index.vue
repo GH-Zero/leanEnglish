@@ -15,7 +15,8 @@
 			</view>
 		</view>
 
-		<view class="section performance-section">
+		<animated-loading v-if="loading" text="正在加载口语数据"></animated-loading>
+		<view class="section performance-section" v-if="!loading">
 			<view class="section-heading"><view><text class="section-title">练习表现</text><text class="section-subtitle">只展示真实完成的数据</text></view></view>
 			<view class="performance-card"><view class="performance-item"><text class="performance-value">{{ totalSpeakPractice }}</text><text class="performance-label">累计练习</text></view><view class="performance-line"></view><view class="performance-item"><text class="performance-value">{{ todayCompleted }}</text><text class="performance-label">今日练习</text></view><view class="performance-line"></view><view class="performance-item"><text class="performance-value">{{ lastScore ? lastScore + '分' : '--' }}</text><text class="performance-label">最近评分</text></view></view>
 		</view>
@@ -24,8 +25,9 @@
 
 <script>
 import { getLearningStats, getStudyStatistics, getDialogueHistory, getPhoneticProgress } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 export default {
- data(){return{todayCompleted:0,lastScore:0,totalSpeakPractice:0}},
+ data(){const firstLoad=isFirstLoad('pages/speak/index');return{loading:firstLoad,firstLoad,todayCompleted:0,lastScore:0,totalSpeakPractice:0}},
  onShow(){this.loadPerformance()},
  methods:{
   dateKey(){const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`},
@@ -48,6 +50,8 @@ export default {
    }catch(_){
     this.todayCompleted=saved.date===this.dateKey()?Number(saved.count||0):0;
     this.lastScore=Number(saved.lastScore||0);
+   } finally {
+    this.loading = false;
    }
   },
   openShadowPractice(){uni.navigateTo({url:'/pages/speak/shadow'})},

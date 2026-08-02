@@ -36,9 +36,7 @@
 		<view class="section list-section">
 			<text class="section-title">音标列表</text>
 			<scroll-view class="phonetic-list phonetic-scroll" scroll-y="true" :show-scrollbar="true" enhanced="true">
-				<view class="list-status" v-if="listLoading">
-					<text class="status-text">正在加载音标...</text>
-				</view>
+				<animated-loading v-if="listLoading" text="正在加载音标"></animated-loading>
 				<view class="phonetic-item" :class="{ mastered: isPhoneticMastered(item) }" v-for="item in filteredPhonetics" :key="item.id || item.symbol" v-else-if="filteredPhonetics.length">
 					<view class="phonetic-symbol">{{ item.symbol }}</view>
 					<view class="phonetic-info">
@@ -54,10 +52,8 @@
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
 					</view>
 				</view>
-				<view class="list-status empty-state" v-else @click="loadPhonetics">
-					<text class="empty-icon">📭</text>
-					<text class="status-title">暂无音标数据</text>
-					<text class="status-text">{{ listError ? '加载失败，点击重新加载' : '当前分类下暂无内容' }}</text>
+				<view class="list-status" v-else @click="loadPhonetics">
+					<animated-empty icon="📭" text="暂无音标数据" :sub="listError ? '加载失败，点击重新加载' : '当前分类下暂无内容'"></animated-empty>
 				</view>
 			</scroll-view>
 		</view>
@@ -106,10 +102,12 @@ import { getAudioSettings } from '@/utils/learning-settings.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 
 
 export default {
 	data() {
+		const firstLoad = isFirstLoad('pages/phonetic/index')
 		return {
 			entryType: 'course',
 			currentCategory: 'vowel',
@@ -128,7 +126,8 @@ export default {
 			playbackState: 'idle',
 			myAudioContext: null,
 			apiKeyConfigured: false,
-			listLoading: false,
+			listLoading: firstLoad,
+			firstLoad,
 			listError: false,
 			voiceType: 1
 		}
@@ -155,7 +154,7 @@ export default {
 	},
 	methods: {
 		async loadPhonetics() {
-			this.listLoading = true;
+			if (this.firstLoad) { this.listLoading = true; this.firstLoad = false }
 			this.listError = false;
 			try {
 				const res = await new Promise((resolve, reject) => {

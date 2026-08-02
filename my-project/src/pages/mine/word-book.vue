@@ -18,8 +18,8 @@
 			<view class="example" v-if="item.example"><view class="example-head"><text class="example-label">例句</text><text class="example-play" @click="play(item.example,2,'example-'+item.id)">{{ playingKey === 'example-'+item.id ? '正在朗读…' : '🔊 朗读例句' }}</text></view><text class="tappable" @click="play(item.example,2,'example-'+item.id)">{{ item.example }}</text></view>
 			<view class="tags"><text v-if="item.category">{{ item.category }}</text><text v-if="item.tag">{{ item.tag }}</text></view>
 		</view>
-		<view class="state" v-if="loading">正在查询词典...</view>
-		<view class="state" v-else-if="hasSearched && !words.length"><text class="state-icon">🔍</text><text>没有找到相关单词</text><text class="state-hint">试试英文原形或更简短的中文关键词</text></view>
+		<animated-loading v-if="loading" text="正在查询词典..."></animated-loading>
+		<animated-empty v-else-if="hasSearched && !words.length" icon="🔍" text="没有找到相关单词" sub="试试英文原形或更简短的中文关键词"></animated-empty>
 		<button class="more" v-if="!loading && words.length < total" @click="loadMore">加载更多</button>
 		<view class="scroll-bottom"></view>
 		</scroll-view>
@@ -27,9 +27,10 @@
 </template>
 <script>
 import { BASE_URL } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 export default {
-	data(){return{keyword:'',words:[],total:0,page:1,pageSize:20,loading:false,hasSearched:false,timer:null,requestId:0,audio:null,playingKey:''}},
+	data(){const firstLoad=isFirstLoad('pages/mine/word-book');return{keyword:'',words:[],total:0,page:1,pageSize:20,firstLoad,loading:firstLoad,hasSearched:false,timer:null,requestId:0,audio:null,playingKey:''}},
 	onLoad(){this.search()},
 	onUnload(){clearTtsQueue();if(this.timer)clearTimeout(this.timer);if(this.audio){this.audio.stop();this.audio.destroy()}},
 	methods:{
@@ -39,7 +40,7 @@ export default {
 		async search(){if(!this.keyword.trim())return this.resetSearch();this.page=1;this.words=[];this.hasSearched=true;await this.fetchWords(false)},
 		async loadMore(){this.page++;await this.fetchWords(true)},
 		fetchWords(append){
-			const requestId=++this.requestId;this.loading=true;
+			const requestId=++this.requestId;if(this.firstLoad){this.loading=true;this.firstLoad=false}
 			return new Promise(resolve=>uni.request({
 				url:BASE_URL+'/words/list',
 				data:{keyword:this.keyword.trim(),page:this.page,pageSize:this.pageSize},

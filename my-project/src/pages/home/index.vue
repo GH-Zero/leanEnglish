@@ -1,6 +1,8 @@
 <template>
 	<view class="container">
 		<view class="page-header"><text class="page-title">学习概览</text><text class="page-subtitle">每天完成一点，稳步提升英语能力</text></view>
+		<animated-loading v-if="loading && !hasLoaded" text="正在加载学习数据"></animated-loading>
+		<template v-if="!loading || hasLoaded">
 		<view class="stats-strip">
 			<view class="stat"><text class="stat-value">{{ stats.streakDays }}<text>天</text></text><text class="stat-label">连续学习</text></view><view class="stat-line"></view>
 			<view class="stat"><text class="stat-value">{{ stats.totalWordsLearned }}<text>个</text></text><text class="stat-label">已学单词</text></view><view class="stat-line"></view>
@@ -37,6 +39,8 @@
 			</view>
 		</view>
 
+		</template>
+
 		<view v-if="showReminder" class="reminder-overlay" @touchmove.stop.prevent>
 			<view class="reminder-modal">
 				<view class="reminder-icon">⏰</view>
@@ -63,9 +67,11 @@ import {
 	getSettings,
 	request
 } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 
 export default {
 	data() {
+		const firstLoad = isFirstLoad('pages/home/index')
 		return {
 			dailyGrammarQuestions: 10,
 			dailyNewWords: 20,
@@ -75,6 +81,9 @@ export default {
 			reminderItems: [],
 			adventure: { passedCount: 0, total: 0, stars: 0, current: null },
 			adventureLoaded: false,
+			loading: firstLoad,
+			firstLoad,
+			hasLoaded: false,
 			stats: {
 				streakDays: 0,
 				totalWordsLearned: 0,
@@ -84,6 +93,7 @@ export default {
 	},
 	onShow() {
 		this.adventureLoaded = false;
+		if (this.firstLoad) { this.loading = true; this.firstLoad = false }
 		this.loadAdventure();
 		this.loadData();
 	},
@@ -127,6 +137,9 @@ export default {
 			} catch (error) {
 				console.error('加载数据失败:', error);
 				this.loadLocalData();
+			} finally {
+				this.loading = false;
+				this.hasLoaded = true;
 			}
 		},
 		dateKey(date = new Date()) {

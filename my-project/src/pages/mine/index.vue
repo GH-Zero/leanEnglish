@@ -9,8 +9,9 @@
 				</view>
 			</view>
 		</view>
-		<text class="load-tip" v-if="loading">数据加载中...</text>
-		<text class="load-tip error" v-else-if="loadError" @click="loadData">部分数据加载失败，当前显示可用数据，点击重试</text>
+		<animated-loading v-if="loading && !hasLoaded" text="数据加载中"></animated-loading>
+		<template v-if="!loading || hasLoaded">
+		<text class="load-tip error" v-if="loadError" @click="loadData">部分数据加载失败，当前显示可用数据，点击重试</text>
 		
 		<view class="stats-card">
 			<view class="stat-item">
@@ -73,16 +74,21 @@
 				</view>
 			</view>
 		</view>
+		</template>
 	</view>
 </template>
 
 <script>
 import { getLearningStats, getStreakData, getUserProfile, getStudyStatistics } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 
 export default {
 	data() {
+		const firstLoad = isFirstLoad('pages/mine/index')
 		return {
-			loading: false,
+			loading: firstLoad,
+			firstLoad,
+			hasLoaded: false,
 			loadError: false,
 			stats: {
 				learningDays: 0,
@@ -102,7 +108,7 @@ export default {
 	methods: {
 		useDefaultAvatar() { this.userProfile.avatar = '/static/logo.png'; },
 		async loadData() {
-			this.loading = true;
+			if (this.firstLoad) { this.loading = true; this.firstLoad = false }
 			this.loadError = false;
 			const [statsResult, streakResult, profileResult, statisticsResult] = await Promise.allSettled([
 				getLearningStats(), getStreakData(), getUserProfile(), getStudyStatistics()
@@ -122,6 +128,7 @@ export default {
 			this.userProfile = { nickname: '英语学习者', avatar: '/static/logo.png', level: 0, ...(profile || {}) };
 			if (!this.userProfile.avatar || this.userProfile.avatar === '/static/default-avatar.png') this.userProfile.avatar = '/static/logo.png';
 			this.loading = false;
+			this.hasLoaded = true;
 		},
 		getLocalData() {
 			return {
@@ -193,6 +200,11 @@ export default {
 	height: 120rpx;
 	border-radius: 60rpx;
 	margin-right: 30rpx;
+	animation: avatarGlow 2.4s ease-in-out infinite;
+}
+@keyframes avatarGlow {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(112, 209, 197, .55); }
+	50% { box-shadow: 0 0 0 20rpx rgba(112, 209, 197, 0); }
 }
 
 .user-details {

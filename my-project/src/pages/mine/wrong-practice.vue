@@ -21,18 +21,19 @@
 			</template>
 			<view class="feedback" v-if="feedback" :class="{ success: passed, failed: !passed }"><text>{{ feedback }}</text><button v-if="!passed" class="retry" @click="retry">再试一次</button></view>
 		</view>
-		<view class="empty" v-else-if="!loading"><text class="empty-icon">🎉</text><text>该类型错题已全部完成</text></view>
-		<view class="empty" v-else>正在加载错题...</view>
+		<animated-empty v-else-if="!loading" icon="🎉" text="该类型错题已全部完成"></animated-empty>
+		<animated-loading v-else text="正在加载错题..."></animated-loading>
 	</view>
 </template>
 <script>
 import { request as apiRequest, getWrongWords, markWordAsKnown, markWordAsUnknown, evaluateSpeech } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 import { getAudioSettings } from '@/utils/learning-settings.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
 export default {
-	data(){return{mode:'read',startWord:'',singlePractice:false,words:[],options:[],writeInput:'',selected:'',answered:false,passed:false,feedback:'',loading:true,audio:null,recorder:null,recording:false,evaluating:false,recordTimer:null}},
+	data(){const firstLoad=isFirstLoad('pages/mine/wrong-practice');return{mode:'read',startWord:'',singlePractice:false,words:[],options:[],writeInput:'',selected:'',answered:false,passed:false,feedback:'',firstLoad,loading:firstLoad,audio:null,recorder:null,recording:false,evaluating:false,recordTimer:null}},
 	computed:{
 		current(){return this.words[0]||null},
 		modeTitle(){return({listen:'听音错题重练',read:'辨义错题重练',write:'拼写错题重练',speak:'发音错题重练'})[this.mode]||'错题重练'},
@@ -42,7 +43,7 @@ export default {
 	async onLoad(query={}){this.mode=['listen','read','write','speak'].includes(query.mode)?query.mode:'read';this.startWord=decodeURIComponent(query.word||'');this.singlePractice=String(query.single||'')==='1';this.initRecorder();const audioSettings=await getAudioSettings();this.autoPlay=audioSettings.autoPlay;this.voiceType=audioSettings.voiceType;this.loadQueue()},
 	onUnload(){clearTtsQueue();if(this.recordTimer)clearTimeout(this.recordTimer);if(this.recording&&this.recorder)this.recorder.stop();if(this.audio){this.audio.stop();this.audio.destroy();this.audio=null}},
 	methods:{
-		async loadQueue(){this.loading=true;try{const result=await getWrongWords(this.mode);this.words=result?.words||[];if(this.startWord){if(this.singlePractice)this.words=this.words.filter(item=>item.word===this.startWord).slice(0,1);else{const index=this.words.findIndex(item=>item.word===this.startWord);if(index>0)this.words.unshift(this.words.splice(index,1)[0])}}if(!this.words.length)return this.finishQueue();await this.prepareQuestion()}catch(error){console.error('加载错题失败:',error);uni.showToast({title:'加载错题失败',icon:'none'})}finally{this.loading=false}},
+		async loadQueue(){if(this.firstLoad){this.loading=true;this.firstLoad=false}try{const result=await getWrongWords(this.mode);this.words=result?.words||[];if(this.startWord){if(this.singlePractice)this.words=this.words.filter(item=>item.word===this.startWord).slice(0,1);else{const index=this.words.findIndex(item=>item.word===this.startWord);if(index>0)this.words.unshift(this.words.splice(index,1)[0])}}if(!this.words.length)return this.finishQueue();await this.prepareQuestion()}catch(error){console.error('加载错题失败:',error);uni.showToast({title:'加载错题失败',icon:'none'})}finally{this.loading=false}},
 		async prepareQuestion(){this.selected='';this.answered=false;this.passed=false;this.feedback='';this.writeInput='';if(!this.current||!['listen','read'].includes(this.mode))return;try{const distractors=await apiRequest('/words/random?count=12');const field=this.mode==='listen'?'chinese':'word';const correct=this.current[field];const others=[...new Set(distractors.map(item=>item[field]).filter(value=>value&&value!==correct))].sort(()=>Math.random()-.5).slice(0,3);this.options=[correct,...others].sort(()=>Math.random()-.5);if(this.mode==='listen'&&this.autoPlay)setTimeout(()=>this.playStandard(),250)}catch(error){this.options=[this.correctAnswer]}},
 		optionClass(option){if(!this.answered)return{};return{correct:option===this.correctAnswer,wrong:option===this.selected&&option!==this.correctAnswer}},
 		async choose(option){if(this.answered)return;this.selected=option;playAnswerFeedback(option===this.correctAnswer);if(option===this.correctAnswer)await this.completeCurrent(this.singlePractice?'回答正确，正在返回错题本':'回答正确，即将进入下一题');else{this.answered=true;this.passed=false;this.feedback='回答错误，请再练习一次';await markWordAsUnknown(this.current.word,this.mode).catch(()=>{})}},

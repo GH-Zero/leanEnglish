@@ -17,7 +17,7 @@ export function playAnswerFeedback(correct) {
 		feedbackAudio = audio;
 		audio.autoplay = false;
 		audio.volume = 0.7;
-		audio.src = correct ? '/static/audio/answer-correct.wav' : '/static/audio/answer-wrong.wav';
+		audio.src = correct ? '/static/audio/answer-correct.mp3' : '/static/audio/answer-wrong.mp3';
 		audio.onCanplay(() => {
 			if (!started && generation === feedbackGeneration && feedbackAudio === audio) {
 				started = true;

@@ -14,6 +14,8 @@
 
 			<!-- 可滚动内容区 -->
 			<scroll-view class="scroll-content" scroll-y>
+				<animated-loading v-if="loading && !questions.length" text="正在准备挑战题目"></animated-loading>
+				<animated-empty v-if="!loading && !questions.length" icon="🎯" text="暂无挑战题目" sub="请稍后重试"></animated-empty>
 				<view class="word-card" v-if="questions.length > 0">
 					<!-- 单词闯关：显示英文，选中文 -->
 					<template v-if="challengeType === 'word'">
@@ -115,11 +117,15 @@ import { request as apiRequest, updateWordStats, updateGrammarStats, updateSpeak
 import { getAudioSettings } from '@/utils/learning-settings.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 
 
 export default {
 	data() {
+		const firstLoad = isFirstLoad('pages/challenge/index')
 		return {
+			loading: firstLoad,
+			firstLoad,
 			challengeType: 'word',
 			challengeTitle: '每日单词闯关',
 			questions: [],
@@ -174,7 +180,7 @@ export default {
 			this.challengeTitle = titles[type] || '每日单词闯关';
 		},
 		async loadQuestions() {
-			uni.showLoading({ title: '加载中...' });
+			if (this.firstLoad) { this.loading = true; this.firstLoad = false }
 			try {
 				if (this.challengeType === 'word') {
 					await this.loadWordQuestions();
@@ -187,7 +193,7 @@ export default {
 				console.error('加载题目失败:', e);
 				uni.showToast({ title: '加载失败', icon: 'none' });
 			} finally {
-				uni.hideLoading();
+				this.loading = false;
 			}
 			if (this.autoPlay && this.challengeType !== 'grammar' && this.questions.length && !this.completed) {
 				setTimeout(() => this.autoPlayCurrent(), 300);

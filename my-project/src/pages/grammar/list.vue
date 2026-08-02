@@ -5,6 +5,8 @@
       <text class="subtitle">选择专项知识点，答对的题本轮不再出现</text>
     </view>
 
+    <animated-loading v-if="loading" text="正在加载语法知识点"></animated-loading>
+    <template v-else>
     <view v-if="wrongCount" class="wrong-panel">
       <view class="wrong-head">
         <view><text class="wrong-title">本阶段错题</text><text class="wrong-count">{{ wrongCount }}</text></view>
@@ -35,14 +37,16 @@
       </view>
       <text class="arrow">去练习 ›</text>
     </view>
-    <view v-if="!points.length" class="empty">暂无专项知识点</view>
+    <animated-empty v-if="!points.length" icon="📚" text="暂无专项知识点"></animated-empty>
+    </template>
   </view>
 </template>
 
 <script>
 import { BASE_URL } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 export default {
-  data() { return { stage: 1, points: [], wrongCount: 0, wrongGroups: [] }; },
+  data() { const firstLoad = isFirstLoad('pages/grammar/list'); return { stage: 1, points: [], wrongCount: 0, wrongGroups: [], loading: firstLoad, firstLoad }; },
   computed: { title() { return ['', '基础句型', '核心语法', '进阶语法'][this.stage]; } },
   onLoad(query) { this.stage = Number(query.stage || 1); },
   onShow() { this.load(); },
@@ -67,7 +71,8 @@ export default {
         });
         this.wrongCount = uniqueQuestions.size;
         this.wrongGroups = [...groupMap.values()];
-      });
+        this.loading = false;
+      }).catch(() => { this.loading = false; });
     },
     openWrong(item) {
       let url = `/pages/mine/wrong-book?type=grammar&stage=${this.stage}`;

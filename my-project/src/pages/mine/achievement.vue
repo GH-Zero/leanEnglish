@@ -8,12 +8,15 @@
 			<view class="hero-stats"><view><text class="hero-number">{{ unlockedCount }}</text><text>已解锁</text></view><view><text class="hero-number">{{ totalCount - unlockedCount }}</text><text>待解锁</text></view><view><text class="hero-number">{{ progress }}%</text><text>完成度</text></view></view>
 		</view>
 
+		<animated-loading v-if="loading" text="正在加载成就数据"></animated-loading>
+		<template v-else>
 		<view v-if="nextBadge" class="next-card">
 			<view class="next-icon">{{ nextBadge.icon }}</view>
 			<view class="next-info"><text class="next-kicker">距离最近的徽章</text><text class="next-name">{{ nextBadge.name }}</text><text class="next-desc">{{ nextBadge.description }}</text><view class="next-track"><view class="next-fill" :style="{ width: badgeProgress(nextBadge) + '%' }"></view></view></view>
 			<text class="next-percent">{{ badgeProgress(nextBadge) }}%</text>
 		</view>
 
+		<animated-empty v-if="!allBadges.length" icon="🏆" text="暂无成就数据"></animated-empty>
 		<view v-for="section in sections" :key="section.key" class="section">
 			<view class="section-heading"><view><text class="section-title">{{ section.title }}</text><text class="section-sub">{{ section.subtitle }}</text></view><text class="section-count">{{ section.items.filter(item => item.unlocked).length }}/{{ section.items.length }}</text></view>
 			<view class="badge-list">
@@ -38,12 +41,14 @@
 				<button class="unlock-button" @click="closeUnlockModal">{{ unlockQueue.length ? '查看下一个' : '太棒了' }}</button>
 			</view>
 		</view>
+		</template>
 	</view>
 </template>
 <script>
 import { getAchievements } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 export default {
-	data() { return { learningBadges: [], streakBadges: [], specialBadges: [], showUnlockModal: false, currentUnlock: null, unlockQueue: [] }; },
+	data() { const firstLoad = isFirstLoad('pages/mine/achievement'); return { loading: firstLoad, firstLoad, learningBadges: [], streakBadges: [], specialBadges: [], showUnlockModal: false, currentUnlock: null, unlockQueue: [] }; },
 	computed: {
 		allBadges() { return [...this.learningBadges, ...this.streakBadges, ...this.specialBadges]; },
 		unlockedCount() { return this.allBadges.filter(item => item.unlocked).length; },
@@ -80,7 +85,7 @@ export default {
 		},
 		async loadAchievements() {
 			try { const result = await getAchievements(); this.learningBadges = result.learning || []; this.streakBadges = result.streak || []; this.specialBadges = result.special || []; }
-			catch (error) { console.error('加载成就数据失败:', error); this.loadLocalAchievements(); }
+			catch (error) { console.error('加载成就数据失败:', error); this.loadLocalAchievements(); } finally { this.loading = false; }
 		},
 		loadLocalAchievements() {
 			this.learningBadges = [{icon:'🌱',name:'初学者',description:'完成第一次学习',unlocked:false,progress:0},{icon:'📖',name:'单词达人',description:'学习100个单词',unlocked:false,progress:0},{icon:'📚',name:'词汇大师',description:'学习500个单词',unlocked:false,progress:0},{icon:'📝',name:'语法入门',description:'掌握5个语法知识点',unlocked:false,progress:0},{icon:'🗣️',name:'口语新星',description:'完成10次跟读',unlocked:false,progress:0}];

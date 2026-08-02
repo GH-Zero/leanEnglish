@@ -14,6 +14,8 @@
 			</view>
 		</view>
 
+		<animated-loading v-if="loading" text="正在加载课程数据"></animated-loading>
+		<template v-else>
 		<view class="section-heading"><text class="section-title">课程分类</text><text class="section-tip">选择一门课程继续学习</text></view>
 		<view class="course-list">
 			<view v-for="course in courses" :key="course.key" class="course" @click="go(course.url)">
@@ -26,12 +28,14 @@
 				<text class="course-arrow">›</text>
 			</view>
 		</view>
+		</template>
 	</view>
 </template>
 <script>
 import { getWordStatus, request } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 export default {
-	data() { return { phoneticPercent: 0, phoneticTotal: 0, wordPercent: 0, grammarPercent: 0, wordMastered: 0, wordTotal: 0, phoneticMastered: 0, grammarMastered: 0, grammarTotal: 0 }; },
+	data() { const firstLoad = isFirstLoad('pages/learn/index'); return { loading: firstLoad, firstLoad, phoneticPercent: 0, phoneticTotal: 0, wordPercent: 0, grammarPercent: 0, wordMastered: 0, wordTotal: 0, wordLearned: 0, phoneticMastered: 0, grammarMastered: 0, grammarTotal: 0 }; },
 	computed: {
 		totalMastered() { return this.phoneticMastered + this.wordMastered + this.grammarMastered; },
 		overallPercent() {
@@ -44,7 +48,7 @@ export default {
 		},
 		courses() { return [
 			{ key: 'phonetic', icon: '🔊', title: '音标课程', desc: `${this.phoneticTotal || 0} 个英美音标，逐个掌握`, percent: this.phoneticPercent, url: '/pages/phonetic/index?entry=course' },
-			{ key: 'word', icon: '📚', title: '单词词库', desc: '完整词库，循序渐进积累', percent: Math.round(this.wordPercent), url: '/pages/word/index?entry=course' },
+			{ key: 'word', icon: '📚', title: '单词词库', desc: `已学 ${this.wordLearned} 词 · 已掌握 ${this.wordMastered} 词`, percent: this.wordPercent, url: '/pages/word/index?entry=course' },
 			{ key: 'grammar', icon: '📝', title: '语法课程', desc: '三阶段语法体系，专项突破', percent: this.grammarPercent, url: '/pages/grammar/index' }
 		]; }
 	},
@@ -56,13 +60,15 @@ export default {
 				this.phoneticTotal = Array.isArray(phoneticList) ? phoneticList.length : 0;
 				this.phoneticMastered = Object.values(phonetic || {}).filter(item => item.mastered).length;
 				this.phoneticPercent = this.phoneticTotal ? Math.round(this.phoneticMastered / this.phoneticTotal * 100) : 0;
-				this.wordTotal = (counts?.stats || []).reduce((total, item) => total + Number(item.count || 0), 0);
+				this.wordTotal = Number(counts?.total || 0) || (counts?.stats || []).reduce((total, item) => total + Number(item.count || 0), 0);
+				this.wordLearned = Object.keys(words || {}).length;
 				this.wordMastered = Object.values(words || {}).filter(item => item.mastered).length;
-				this.wordPercent = this.wordTotal ? Number((this.wordMastered / this.wordTotal * 100).toFixed(2)) : 0;
+				this.wordPercent = this.wordTotal ? Number((this.wordMastered / this.wordTotal * 100).toFixed(1)) : 0;
 				this.grammarTotal = Array.isArray(points) ? points.length : 0;
 				this.grammarMastered = Object.values(grammar || {}).filter(item => item.mastered === true).length;
 				this.grammarPercent = this.grammarTotal ? Math.round(this.grammarMastered / this.grammarTotal * 100) : 0;
 			} catch (error) { console.error('加载学习中心失败:', error); }
+			finally { this.loading = false; }
 		},
 		go(url) { uni.navigateTo({ url }); }
 	}

@@ -5,6 +5,8 @@
 			<text class="subtitle">查看你的学习数据</text>
 		</view>
 
+		<animated-loading v-if="loading" text="正在加载学习统计"></animated-loading>
+		<template v-else>
 		<view class="overview-card">
 			<view class="overview-item">
 				<text class="overview-number">{{ stats.totalDays }}</text>
@@ -78,15 +80,20 @@
 				</view>
 			</view>
 		</view>
+		</template>
 	</view>
 </template>
 
 <script>
 import { getStudyStatistics } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 
 export default {
 	data() {
+		const firstLoad = isFirstLoad('pages/mine/statistics')
 		return {
+			loading: firstLoad,
+			firstLoad,
 			currentDate: new Date(),
 			studyDates: [],
 			stats: {
@@ -140,6 +147,8 @@ export default {
 			} catch (error) {
 				console.error('加载统计数据失败:', error);
 				this.loadLocalStatistics();
+			} finally {
+				this.loading = false;
 			}
 		},
 		loadLocalStatistics() {

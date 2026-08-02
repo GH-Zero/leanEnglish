@@ -1,7 +1,7 @@
 ﻿<template>
   <view class="page">
 		<AchievementUnlockNotifier />
-    <view v-if="loading" class="loading">加载练习中…</view>
+    <animated-loading v-if="loading" text="加载练习中..."></animated-loading>
     <template v-else-if="grammar.title">
       <view class="hero">
         <text class="eyebrow">{{ entryType === 'daily' ? '每日语法精讲' : '语法专项练习' }}</text>
@@ -40,19 +40,20 @@
         <button class="secondary" @click="goBack">返回语法列表</button>
       </view>
     </template>
-    <view v-else class="loading">未找到该语法内容</view>
+    <animated-empty v-else icon="📭" text="未找到该语法内容"></animated-empty>
   </view>
 </template>
 <script>
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 import { BASE_URL, getSettings } from '@/utils/api.js';
 export default {
-  data() { return { loading: true, entryType: 'course', grammarId: 0, stagePractice: 0, grammar: {}, questions: [], dailyGrammarQuestions: 10, questionIndex: 0, selectedIndex: -1, answered: false, isCorrect: false, correctCount: 0, masteryResult: null, questionProgress: null, step: 'explain', optionLabels: ['A', 'B', 'C', 'D'] }; },
+  data() { const firstLoad = isFirstLoad('pages/grammar/practice'); return { loading: firstLoad, firstLoad, entryType: 'course', grammarId: 0, stagePractice: 0, grammar: {}, questions: [], dailyGrammarQuestions: 10, questionIndex: 0, selectedIndex: -1, answered: false, isCorrect: false, correctCount: 0, masteryResult: null, questionProgress: null, step: 'explain', optionLabels: ['A', 'B', 'C', 'D'] }; },
   computed: { currentQuestion() { return this.questions[this.questionIndex] || {}; } },
   onLoad(query) { this.entryType = query.entry === 'daily' ? 'daily' : 'course'; this.grammarId = Number(query.id || 0); this.stagePractice = Number(query.stage || 0); this.load(); },
   methods: {
     async load() {
-      this.loading = true;
+      if (this.firstLoad) { this.loading = true; this.firstLoad = false }
       try {
         const [response, settings] = await Promise.all([
           new Promise((resolve, reject) => uni.request({ url: this.stagePractice ? `${BASE_URL}/grammar-point/stage/${this.stagePractice}` : `${BASE_URL}/grammar-point/detail/${this.grammarId}`, success: r => r.statusCode === 200 && r.data.code === 0 ? resolve(r.data.data) : reject(), fail: reject })),

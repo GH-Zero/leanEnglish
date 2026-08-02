@@ -11,7 +11,8 @@
 			<view class="stat-item"><text class="stat-number">{{ totalLearned }}</text><text class="stat-label">已学单词</text></view>
 			<view class="stat-item"><text class="stat-number">{{ accuracy }}%</text><text class="stat-label">正确率</text></view>
 			<view class="stat-item wrong-entry" @click="openWrongBook"><text class="stat-number wrong-number">{{ wrongCount }}</text><text class="stat-label">错题</text></view>
-		</view>		<!-- 每日单词类型 -->
+		</view>		<animated-loading v-if="loading && !wordList.length" text="正在加载单词数据"></animated-loading>
+		<!-- 每日单词类型 -->
 		<view class="section">
 			<text class="section-title">{{ progressiveMode ? '循序渐进学习' : '每日单词类型' }}</text>
 			<view class="daily-category-card">
@@ -200,6 +201,7 @@
 
 <script>
 import { BASE_URL, request as apiRequest, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats, getSettings } from '@/utils/api.js';
+import { isFirstLoad } from '@/utils/first-load.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
@@ -207,6 +209,7 @@ import { playAnswerFeedback } from '@/utils/answer-feedback.js';
 
 export default {
 	data() {
+		const firstLoad = isFirstLoad('pages/word/index')
 		return {
 			currentLevel: 0,
 			todayCategory: '',
@@ -265,7 +268,8 @@ export default {
 			correctCount: 0,
 			totalAttempts: 0,
 			levelCounts: {},
-			loading: false
+			loading: firstLoad,
+			firstLoad
 		}
 	},
 	computed: {
@@ -486,7 +490,7 @@ export default {
 			}
 		},
 		async loadWords() {
-			this.loading = true;
+			if (this.firstLoad) { this.loading = true; this.firstLoad = false }
 			try {
 				const categoryQuery = !this.progressiveMode && this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
 				const modeQuery = this.progressiveMode ? '&progressive=1' : `&level=${this.currentLevel}`;

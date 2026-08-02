@@ -11,7 +11,7 @@
 				<button v-if="!item.correct" class="retry" @click="retry(item)">重新作答</button>
 			</view>
 		</view>
-		<view v-if="!items.length" class="empty"><text class="empty-icon">🎉</text><text>本阶段暂无语法错题</text></view>
+		<animated-empty v-if="!items.length" icon="🎉" text="本阶段暂无语法错题"></animated-empty>
 	</view>
 </template>
 <script>
