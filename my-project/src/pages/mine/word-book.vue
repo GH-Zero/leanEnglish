@@ -27,10 +27,11 @@
 </template>
 <script>
 import { BASE_URL } from '@/utils/api.js';
+import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 export default {
 	data(){return{keyword:'',words:[],total:0,page:1,pageSize:20,loading:false,hasSearched:false,timer:null,requestId:0,audio:null,playingKey:''}},
 	onLoad(){this.search()},
-	onUnload(){if(this.timer)clearTimeout(this.timer);if(this.audio){this.audio.stop();this.audio.destroy()}},
+	onUnload(){clearTtsQueue();if(this.timer)clearTimeout(this.timer);if(this.audio){this.audio.stop();this.audio.destroy()}},
 	methods:{
 		scheduleSearch(){if(this.timer)clearTimeout(this.timer);if(!this.keyword.trim())return this.resetSearch();this.timer=setTimeout(()=>this.search(),350)},
 		clearSearch(){this.keyword='';this.resetSearch()},
@@ -56,15 +57,8 @@ export default {
 		levelLabel(level){return ['入门','初级','中级','高级'][Number(level)]||'通用'},
 		play(text,type,key){
 			const value=String(text||'').trim();if(!value)return;
-			if(this.audio){this.audio.stop();this.audio.destroy();this.audio=null}
-			this.playingKey=key||value;
-			const url='https://dict.youdao.com/dictvoice?audio='+encodeURIComponent(value)+'&type='+type;
-			uni.downloadFile({url,success:result=>{
-				if(result.statusCode!==200||!result.tempFilePath){this.playingKey='';return uni.showToast({title:'语音加载失败',icon:'none'})}
-				const audio=uni.createInnerAudioContext();this.audio=audio;audio.src=result.tempFilePath;
-				audio.onCanplay(()=>audio.play());audio.onEnded(()=>{if(this.audio===audio)this.audio=null;this.playingKey='';audio.destroy()});
-				audio.onError(()=>{if(this.audio===audio)this.audio=null;this.playingKey='';audio.destroy();uni.showToast({title:'语音播放失败',icon:'none'})});
-			},fail:()=>{this.playingKey='';uni.showToast({title:'语音加载失败',icon:'none'})}});
+			const currentKey=key||value;this.playingKey=currentKey;
+			playTts(value,3).catch(error=>{console.error('词典发音失败:',error);uni.showToast({title:error?.message||'语音播放失败',icon:'none'})}).finally(()=>{if(this.playingKey===currentKey)this.playingKey=''})
 		}
 	}
 };

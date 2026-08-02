@@ -37,7 +37,7 @@ async function updateLearningStats(userId, isCorrect) {
 router.get('/status', async (req, res) => {
   try {
     const userId = parseInt(req.query.userId, 10) || 1;
-    const rows = await db.prepare('SELECT * FROM word_status WHERE user_id = ?').all(userId);
+    const rows = await db.prepare('SELECT ws.*, w.category, w.level FROM word_status ws LEFT JOIN words w ON w.word = ws.word WHERE ws.user_id = ?').all(userId);
     const status = {};
     rows.forEach((item) => {
       const modes = {
@@ -50,6 +50,9 @@ router.get('/status', async (req, res) => {
         repetition: item.repetition,
         next_review_date: item.next_review_date,
         last_review_date: item.last_review_date,
+        updated_at: item.updated_at,
+        category: item.category || '',
+        level: Number(item.level || 0),
         mastered: item.mastered === 1,
         modes,
         completed_modes: Object.values(modes).filter(Boolean).length

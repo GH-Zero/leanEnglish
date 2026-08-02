@@ -1,4 +1,4 @@
-<template>
+﻿<template>
 	<view class="page">
 		<view class="hero-card">
 			<view class="hero-glow"></view>
@@ -26,14 +26,6 @@
 				<text class="course-arrow">›</text>
 			</view>
 		</view>
-
-		<view class="section-heading progress-heading"><text class="section-title">学习进度</text><text class="section-tip">完整课程掌握情况</text></view>
-		<view class="progress-card">
-			<view v-for="item in progress" :key="item.name" class="progress-item">
-				<view class="progress-row"><text class="progress-name">{{ item.name }}</text><text class="progress-value">{{ item.label }}</text></view>
-				<view class="progress-track"><view class="progress-fill" :style="{ width: item.value + '%' }"></view></view>
-			</view>
-		</view>
 	</view>
 </template>
 <script>
@@ -54,11 +46,6 @@ export default {
 			{ key: 'phonetic', icon: '🔊', title: '音标课程', desc: `${this.phoneticTotal || 0} 个英美音标，逐个掌握`, percent: this.phoneticPercent, url: '/pages/phonetic/index?entry=course' },
 			{ key: 'word', icon: '📚', title: '单词词库', desc: '完整词库，循序渐进积累', percent: Math.round(this.wordPercent), url: '/pages/word/index?entry=course' },
 			{ key: 'grammar', icon: '📝', title: '语法课程', desc: '三阶段语法体系，专项突破', percent: this.grammarPercent, url: '/pages/grammar/index' }
-		]; },
-		progress() { return [
-			{ name: '音标掌握', value: this.phoneticPercent, label: `${this.phoneticMastered}/${this.phoneticTotal || 0}（${this.phoneticPercent}%）` },
-			{ name: '单词积累', value: this.wordPercent, label: `${this.wordMastered}/${this.wordTotal || 36000}（${this.wordPercent.toFixed(2)}%）` },
-			{ name: '语法掌握', value: this.grammarPercent, label: `${this.grammarMastered}/${this.grammarTotal || 40}（${this.grammarPercent}%）` }
 		]; }
 	},
 	onShow() { this.load(); },
@@ -89,5 +76,4 @@ export default {
 .hero-summary{display:flex;align-items:center;margin-top:28rpx;padding-top:23rpx;border-top:1rpx solid rgba(255,255,255,.16)}.summary-item{flex:1;min-width:0;text-align:center}.summary-number,.summary-label{display:block}.summary-number{font-size:36rpx;font-weight:800}.summary-label{margin-top:6rpx;font-size:21rpx;color:rgba(255,255,255,.7)}.summary-breakdown{display:flex;align-items:center;justify-content:center;gap:8rpx;margin-top:6rpx;white-space:nowrap;font-size:19rpx;color:rgba(255,255,255,.72)}.summary-dot{margin:0 2rpx;color:#8fe1d6}.summary-line{flex:0 0 1rpx;width:1rpx;height:56rpx;background:rgba(255,255,255,.22)}
 .section-heading{display:flex;justify-content:space-between;align-items:flex-end;margin:32rpx 5rpx 16rpx}.section-title{font-size:32rpx;font-weight:800;color:#213f61}.section-tip{font-size:21rpx;color:#98a3ae}
 .course-list{display:flex;flex-direction:column;gap:14rpx}.course{display:flex;align-items:center;gap:20rpx;padding:24rpx 22rpx;border-radius:22rpx;background:#fff;box-shadow:0 7rpx 20rpx rgba(34,63,93,.07)}.course-icon{display:flex;align-items:center;justify-content:center;width:76rpx;height:76rpx;border-radius:20rpx;font-size:34rpx}.course-icon.phonetic{background:#e8f7f5}.course-icon.word{background:#edf3ff}.course-icon.grammar{background:#fff2e9}.course-main{flex:1}.course-title-row{display:flex;align-items:center;justify-content:space-between}.course-title{font-size:28rpx;font-weight:800;color:#264b72}.course-percent{font-size:22rpx;font-weight:700;color:#0d9488}.course-desc{display:block;margin-top:6rpx;font-size:22rpx;color:#8996a4}.course-arrow{font-size:34rpx;color:#9eacb9}.mini-track{height:7rpx;margin-top:14rpx;border-radius:8rpx;background:#edf1f4;overflow:hidden}.mini-fill{height:100%;border-radius:8rpx;background:#20b8a8}.mini-fill.word{background:#5488dd}.mini-fill.grammar{background:#e99b62}
-.progress-heading{margin-top:34rpx}.progress-card{padding:28rpx 26rpx 8rpx;border-radius:24rpx;background:#fff;box-shadow:0 7rpx 22rpx rgba(34,63,93,.07)}.progress-item{margin-bottom:26rpx}.progress-row{display:flex;justify-content:space-between;align-items:center}.progress-name{font-size:28rpx;color:#49647f}.progress-value{font-size:23rpx;font-weight:700;color:#315a82}.progress-track{height:13rpx;margin-top:13rpx;border-radius:14rpx;background:#edf1f4;overflow:hidden}.progress-fill{height:100%;border-radius:14rpx;background:linear-gradient(90deg,#36c8b8,#0d9488)}
 </style>

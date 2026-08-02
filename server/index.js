@@ -1,5 +1,8 @@
 require('./load-env');
 const express = require('express');
+const https = require('https'); // HTTPS 模块
+const fs = require('fs'); // 文件系统模块，用于读取SSL证书
+const path = require('path');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const { initDatabase } = require('./database');
@@ -80,10 +83,19 @@ async function startServer() {
 		// 初始化数据库
 		await initDatabase();
 
+		// 读取 SSL 证书和密钥
+		const options = {
+			key: fs.readFileSync(path.join(__dirname, './ssl/key.key')),
+			cert: fs.readFileSync(path.join(__dirname, './ssl/cert.pem'))
+		};
+
+		// 使用 HTTPS 启动服务器
+		const server = https.createServer(options, app);
+
 		// 启动Express服务器
-		app.listen(PORT, () => {
+		server.listen(PORT, () => {
 			console.log(`✅ 服务器已启动，监听端口: ${PORT}`);
-			console.log(`📡 API地址: http://localhost:${PORT}/api`);
+			console.log(`📡 API地址: https://localhost:${PORT}/api`);
 			console.log(`💾 数据库: MySQL`);
 		});
 	} catch (error) {

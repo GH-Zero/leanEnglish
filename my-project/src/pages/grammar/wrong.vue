@@ -22,8 +22,8 @@ export default{
 	methods:{
 		load(){const all=uni.getStorageSync('grammar_wrong')||[];let list=all.filter(item=>(!this.stage||Number(item.stage)===this.stage)&&(!this.grammarId||Number(item.grammarId)===this.grammarId));if(this.startSentence){if(this.singlePractice)list=list.filter(item=>item.sentence===this.startSentence).slice(0,1);else{const index=list.findIndex(item=>item.sentence===this.startSentence);if(index>0)list.unshift(list.splice(index,1)[0])}}this.items=list.map(item=>({...item,checked:false,correct:false,selected:''}))},
 		itemKey(item,index){return String(item.grammarId||item.grammarTitle||'grammar')+'-'+String(item.sentence||index)},
-		answer(item,option){if(item.checked)return;item.selected=option;item.checked=true;item.correct=option===item.answer;if(item.correct)setTimeout(()=>this.completeQuestion(item),700)},
-		completeQuestion(item){const all=uni.getStorageSync('grammar_wrong')||[];const remain=all.filter(record=>!(String(record.sentence||'')===String(item.sentence||'')&&(!item.grammarId||Number(record.grammarId)===Number(item.grammarId))));uni.setStorageSync('grammar_wrong',remain);uni.showToast({title:'回答正确，已移除当前错题',icon:'success'});if(this.singlePractice)setTimeout(()=>uni.navigateBack(),500);else setTimeout(()=>this.load(),300)},
+		answer(item,option){if(item.checked)return;item.selected=option;item.checked=true;item.correct=option===item.answer;if(item.correct)setTimeout(()=>this.completeQuestion(item),350)},
+		completeQuestion(item){const all=uni.getStorageSync('grammar_wrong')||[];const remain=all.filter(record=>!(String(record.sentence||'')===String(item.sentence||'')&&(!item.grammarId||Number(record.grammarId)===Number(item.grammarId))));uni.setStorageSync('grammar_wrong',remain);uni.showToast({title:'回答正确，已移除当前错题',icon:'success'});if(this.singlePractice)setTimeout(()=>uni.navigateBack(),250);else this.load()},
 		retry(item){item.checked=false;item.correct=false;item.selected=''}
 	}
 }

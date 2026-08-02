@@ -1,4 +1,4 @@
-<template>
+﻿<template>
 	<view class="container">
 		<AchievementUnlockNotifier />
 		<view class="section progress-section">
@@ -39,13 +39,14 @@
 				<view class="list-status" v-if="listLoading">
 					<text class="status-text">正在加载音标...</text>
 				</view>
-				<view class="phonetic-item" v-for="item in filteredPhonetics" :key="item.id || item.symbol" v-else-if="filteredPhonetics.length">
+				<view class="phonetic-item" :class="{ mastered: isPhoneticMastered(item) }" v-for="item in filteredPhonetics" :key="item.id || item.symbol" v-else-if="filteredPhonetics.length">
 					<view class="phonetic-symbol">{{ item.symbol }}</view>
 					<view class="phonetic-info">
 						<text class="phonetic-example">{{ item.example }}</text>
 						<text class="phonetic-chinese">{{ item.chinese }}</text>
 					</view>
 					<view class="phonetic-actions">
+						<text class="passed-tag" v-if="isPhoneticMastered(item)">✓ 已通过</text>
 						<text class="play-btn" @click="playSound(item.symbol, item.example, item.chinese)">🔊</text>
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
 					</view>
@@ -83,12 +84,11 @@
 					</view>
 					
 					<view class="practice-actions">
-						<text class="action-btn play" @click="playSound(currentPractice.symbol, currentPractice.example, currentPractice.chinese)">播放标准发音</text>
-						<text class="action-btn play-my" v-if="recordedFilePath" @click="playMyRecording">{{ playbackState === 'downloading' ? '下载录音中' : playbackState === 'playing' ? '正在播放' : '播放我的录音' }}</text>
+						<text class="action-btn play" @click="playSound(currentPractice.symbol, currentPractice.example, currentPractice.chinese)">标准发音</text>
+						<text class="action-btn play-my" v-if="recordedFilePath" @click="playMyRecording">{{ playbackState === 'downloading' ? '加载中' : playbackState === 'playing' ? '播放中' : '我的录音' }}</text>
 						<text class="action-btn record" :class="{ recording: isRecording }" @click="toggleRecording">
-							{{ isRecording ? '停止录音' : '开始录音' }}
+							{{ isRecording ? '停止' : (showScore ? '再录一次' : '开始录音') }}
 						</text>
-						<text class="action-btn retry" v-if="showScore" @click="retryPractice">重新跟读</text>
 					</view>
 				</view>
 			</view>
@@ -100,6 +100,8 @@
 <script>
 import { BASE_URL, evaluateSpeech, getPhoneticProgress, updatePhoneticProgress, updatePhoneticStats } from '@/utils/api.js';
 import { getAudioSettings } from '@/utils/learning-settings.js';
+import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
+import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 
 
 export default {
@@ -108,6 +110,7 @@ export default {
 			entryType: 'course',
 			currentCategory: 'vowel',
 			phonetics: [],
+			phoneticProgress: {},
 			showPracticeModal: false,
 			currentPractice: {},
 			isRecording: false,
@@ -142,6 +145,10 @@ export default {
 		this.loadPhonetics();
 		this.loadProgress();
 	},
+	onUnload() {
+		clearTtsQueue();
+		if (this.myAudioContext) { this.myAudioContext.stop(); this.myAudioContext.destroy(); this.myAudioContext = null; }
+	},
 	methods: {
 		async loadPhonetics() {
 			this.listLoading = true;
@@ -169,6 +176,9 @@ export default {
 			} finally {
 				this.listLoading = false;
 			}
+		},
+		isPhoneticMastered(item) {
+			return Boolean(this.phoneticProgress?.[item?.symbol]?.mastered);
 		},
 		async loadProgress() {
 			try {
@@ -201,15 +211,9 @@ export default {
 			this.playWordAudio(word);
 		},
 		playWordAudio(word) {
-			const audio = uni.createInnerAudioContext();
-			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${this.voiceType}`;
-			audio.play();
-			audio.onError((err) => {
-				console.error('音频播放失败:', err);
-				uni.showToast({
-					title: '播放失败，请检查网络',
-					icon: 'none'
-				});
+			playTts(word, 3).catch(error => {
+				console.error('音标示例播放失败:', error);
+				uni.showToast({ title: error?.message || '播放失败，请重试', icon: 'none' });
 			});
 		},
 		startPractice(item) {
@@ -228,29 +232,49 @@ export default {
 			this.playbackState = 'idle';
 		},
 		closePractice() {
+			const wasRecording = this.isRecording;
 			this.showPracticeModal = false;
 			this.isRecording = false;
-			if (this.recordManager) {
-				this.recordManager.stop();
+			if (this.recordStopTimer) {
+				clearTimeout(this.recordStopTimer);
+				this.recordStopTimer = null;
 			}
+			// 关闭弹窗属于主动取消，不应显示“录音失败”。
+			this.cancelRecording = wasRecording;
+			if (wasRecording && this.recordManager) this.recordManager.stop();
 		},
 		initRecorder() {
 			this.recordManager = uni.getRecorderManager();
 			
 			this.recordManager.onStop((res) => {
-				console.log('录音结束:', res);
+				if (this.recordStopTimer) {
+					clearTimeout(this.recordStopTimer);
+					this.recordStopTimer = null;
+				}
 				this.isRecording = false;
+				if (this.cancelRecording || !this.showPracticeModal) {
+					this.cancelRecording = false;
+					return;
+				}
+				if (!res.tempFilePath) {
+					uni.showToast({ title: '未获取到录音，请重试', icon: 'none' });
+					return;
+				}
 				this.recordedFilePath = res.tempFilePath;
 				this.evaluateRecording(res.tempFilePath);
 			});
 			
 			this.recordManager.onError((err) => {
-				console.error('录音错误:', err);
+				if (this.recordStopTimer) {
+					clearTimeout(this.recordStopTimer);
+					this.recordStopTimer = null;
+				}
+				const cancelled = this.cancelRecording || !this.showPracticeModal;
+				this.cancelRecording = false;
 				this.isRecording = false;
-				uni.showToast({
-					title: '录音失败，请重试',
-					icon: 'none'
-				});
+				if (cancelled) return;
+				console.error('录音错误:', err);
+				uni.showToast({ title: '录音失败，请重试', icon: 'none' });
 			});
 		},
 		toggleRecording() {
@@ -278,10 +302,9 @@ export default {
 			this.recordManager.start(options);
 			
 			// 自动停止录音（最长10秒）
-			setTimeout(() => {
-				if (this.isRecording) {
-					this.recordManager.stop();
-				}
+			this.recordStopTimer = setTimeout(() => {
+				this.recordStopTimer = null;
+				if (this.isRecording) this.recordManager.stop();
 			}, 10000);
 		},
 		evaluateRecording(filePath) {
@@ -346,9 +369,10 @@ export default {
 				await updatePhoneticStats(1);
 				// 更新本地音标进度
 				const phoneticId = this.currentPractice.symbol;
-				if (this.score >= 80) {
-					await updatePhoneticProgress(phoneticId, this.score);
-					// 检查是否已掌握（评分>=80视为掌握）
+				if (this.score >= PRONUNCIATION_PASS_SCORE) {
+					const progressResult = await updatePhoneticProgress(phoneticId, this.score);
+					this.phoneticProgress = { ...this.phoneticProgress, [phoneticId]: { ...(this.phoneticProgress[phoneticId] || {}), ...progressResult, mastered: true } };
+					// 检查是否已掌握（评分达到统一通过线视为掌握）
 					const local = uni.getStorageSync('phoneticProgress') || {};
 					if (!local[phoneticId] || !local[phoneticId].mastered) {
 						local[phoneticId] = { mastered: true, score: this.score };
@@ -485,7 +509,8 @@ export default {
 
 .category-list {
 	display: flex;
-	justify-content: space-around;
+	justify-content: center;
+	gap: 12rpx;
 	margin-bottom: 20rpx;
 }
 
@@ -756,7 +781,8 @@ export default {
 
 .practice-actions {
 	display: flex;
-	justify-content: space-around;
+	justify-content: center;
+	gap: 12rpx;
 	margin-top: 30rpx;
 }
 
@@ -790,4 +816,7 @@ export default {
 	background-color: #F0F0F0;
 	color: #333333;
 }
-</style>
+
+/* 紧凑版课程布局 */
+.header{padding:8rpx 0 10rpx}.title{font-size:32rpx}.subtitle{margin-top:4rpx;font-size:19rpx}.section{margin:15rpx 0}.progress-section{margin-bottom:12rpx}.progress-card{padding:20rpx 22rpx}.progress-info{margin-bottom:10rpx}.progress-text,.progress-percent{font-size:24rpx}.progress-bar{height:14rpx}.section-title{margin-bottom:10rpx;font-size:27rpx}.category-list{margin-bottom:8rpx}.category-item{padding:14rpx 34rpx;border-radius:15rpx}.category-text{font-size:24rpx}.phonetic-scroll{height:calc(100vh - 490rpx)}.phonetic-item{padding:19rpx 20rpx}.phonetic-symbol{width:120rpx;font-size:32rpx}.phonetic-example{font-size:25rpx}.phonetic-chinese{margin-top:2rpx;font-size:20rpx}.phonetic-actions{gap:12rpx}.play-btn{margin-right:2rpx;font-size:32rpx}.practice-btn{padding:8rpx 16rpx;font-size:22rpx}.passed-tag{flex-shrink:0;padding:5rpx 10rpx;border-radius:15rpx;background:#e7f7f3;color:#0b8f83;font-size:18rpx;font-weight:700}.phonetic-item.mastered{background:#fbfefd}</style>
+

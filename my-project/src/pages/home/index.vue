@@ -25,7 +25,7 @@
 		<view class="section adventure-section">
 			<view class="section-heading"><view><text class="section-title">闯关游戏</text><text class="section-subtitle">按顺序解锁场景，边玩边学英语</text></view></view>
 			<view class="adventure-card" @click="goAdventure">
-				<view class="adventure-icon">🎮</view><view class="adventure-info"><text class="adventure-title">英语成长地图</text><text class="adventure-label">{{ !adventureLoaded ? '正在获取关卡进度' : (adventure.current ? '当前：' + adventure.current.world + ' · ' + adventure.current.title : (adventure.total > 0 && adventure.passedCount === adventure.total ? '全部关卡已完成，可重新挑战' : '从第一关开始冒险')) }}</text><view class="adventure-track"><view :style="{width:adventurePercent+'%'}"></view></view></view><view class="adventure-action"><text>{{ adventure.passedCount }}/{{ adventure.total }}</text><text>开始闯关 ›</text></view>
+				<view class="adventure-icon">🎮</view><view class="adventure-info"><text class="adventure-title">英语成长地图</text><text class="adventure-label">{{ !adventureLoaded ? '正在获取关卡进度' : (adventure.current ? '当前：' + adventure.current.world + ' · ' + adventure.current.title : (adventure.total > 0 && adventure.passedCount === adventure.total ? '全部关卡已完成，可重新挑战' : '从第一关开始冒险')) }}</text><view class="adventure-track"><view :style="{width: adventurePercent + '%'}"></view></view></view><view class="adventure-action"><text>{{ adventureLoaded ? adventurePassed + '/' + adventureTotal : '--/--' }}</text><text>开始闯关 ›</text></view>
 			</view>
 		</view>
 		<view class="section challenge-section">
@@ -83,10 +83,30 @@ export default {
 		}
 	},
 	onShow() {
+		this.adventureLoaded = false;
+		this.loadAdventure();
 		this.loadData();
 	},
+	computed: {
+		adventurePassed() { return Number(this.adventure?.passedLevels ?? this.adventure?.passedCount ?? 0); },
+		adventureTotal() { return Number(this.adventure?.totalLevels ?? this.adventure?.total ?? 0); },
+		adventurePercent() {
+			if (!this.adventureTotal) return 0;
+			return Math.max(0, Math.min(100, this.adventurePassed * 100 / this.adventureTotal));
+		}
+	},
 	methods: {
-		async loadAdventure() { try { this.adventure = await request('/adventure-course/modules'); } catch (error) { this.adventure = { passedCount: 0, total: 0, stars: 0, current: null }; } finally { this.adventureLoaded = true; } },
+		async loadAdventure() {
+			try {
+				const result = await request('/adventure-course/modules');
+				this.adventure = result || { passedCount: 0, total: 0, passedLevels: 0, totalLevels: 0, stars: 0, current: null };
+			} catch (error) {
+				console.error('加载成长地图进度失败:', error);
+				this.adventure = { passedCount: 0, total: 0, passedLevels: 0, totalLevels: 0, stars: 0, current: null };
+			} finally {
+				this.adventureLoaded = true;
+			}
+		},
 		goAdventure() { uni.navigateTo({ url: '/pages/adventure/index' }); },
 		async loadData() {
 			try {

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
 	<view class="page">
 		<AchievementUnlockNotifier />
 		<!-- 答题界面 -->
@@ -111,8 +111,9 @@
 </template>
 
 <script>
-import { BASE_URL, updateWordStats, updateGrammarStats, updateSpeakStats } from '@/utils/api.js';
+import { request as apiRequest, updateWordStats, updateGrammarStats, updateSpeakStats } from '@/utils/api.js';
 import { getAudioSettings } from '@/utils/learning-settings.js';
+import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 
 
 export default {
@@ -160,12 +161,7 @@ export default {
 		await this.loadQuestions();
 	},
 	onUnload() {
-		this.audioRequestId++;
-		if (this.audioContext) {
-			this.audioContext.stop();
-			this.audioContext.destroy();
-			this.audioContext = null;
-		}
+		clearTtsQueue();
 	},
 	methods: {
 		setChallengeTitle(type) {
@@ -175,23 +171,6 @@ export default {
 				'grammar': '语法闯关'
 			};
 			this.challengeTitle = titles[type] || '每日单词闯关';
-		},
-		async request(url) {
-			return new Promise((resolve, reject) => {
-				uni.request({
-					url: BASE_URL + url,
-					method: 'GET',
-					header: { 'Content-Type': 'application/json' },
-					success: (res) => {
-						if (res.statusCode === 200 && res.data.code === 0) {
-							resolve(res.data.data);
-						} else {
-							reject(res.data.message || '请求失败');
-						}
-					},
-					fail: (err) => reject(err)
-				});
-			});
 		},
 		async loadQuestions() {
 			uni.showLoading({ title: '加载中...' });
@@ -214,7 +193,8 @@ export default {
 			}
 		},
 		async loadWordQuestions() {
-			const words = await this.request('/words/challenge?userId=1&count=20');
+			// 与口语挑战保持一致：每次都从完整词库随机抽取候选词。
+			const words = await apiRequest('/words/random?count=20');
 			if (!words || words.length === 0) {
 				uni.showToast({ title: '暂无单词数据', icon: 'none' });
 				return;
@@ -233,7 +213,7 @@ export default {
 			});
 		},
 		async loadSpeakQuestions() {
-			const words = await this.request('/words/random?count=20');
+			const words = await apiRequest('/words/random?count=20');
 			if (!words || words.length === 0) {
 				uni.showToast({ title: '暂无单词数据', icon: 'none' });
 				return;
@@ -253,7 +233,7 @@ export default {
 			});
 		},
 		async loadGrammarQuestions() {
-			const questions = await this.request('/grammar-question/random?count=10');
+			const questions = await apiRequest('/grammar-question/random?count=10');
 			if (!questions || questions.length === 0) {
 				uni.showToast({ title: '暂无语法题', icon: 'none' });
 				return;
@@ -288,42 +268,12 @@ export default {
 			const sentence = String(question.sentence).replace('___', question.answer || '');
 			this.playAudioText(sentence, this.voiceType);
 		},
-		playAudioText(text, type = 2) {
+		playAudioText(text) {
 			const value = String(text || '').trim();
 			if (!value) return;
-			if (this.audioContext) {
-				this.audioContext.stop();
-				this.audioContext.destroy();
-				this.audioContext = null;
-			}
-			const requestId = ++this.audioRequestId;
-			const url = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(value)}&type=${type}`;
-			uni.downloadFile({
-				url,
-				success: (result) => {
-					if (requestId !== this.audioRequestId) return;
-					if (result.statusCode !== 200 || !result.tempFilePath) {
-						uni.showToast({ title: '语音加载失败', icon: 'none' });
-						return;
-					}
-					const audio = uni.createInnerAudioContext();
-					this.audioContext = audio;
-					audio.autoplay = false;
-					audio.src = result.tempFilePath;
-					audio.onCanplay(() => {
-						if (this.audioContext === audio) audio.play();
-					});
-					audio.onError((error) => {
-						console.error('语音播放失败:', error);
-						if (this.audioContext === audio) this.audioContext = null;
-						audio.destroy();
-						uni.showToast({ title: '语音播放失败', icon: 'none' });
-					});
-				},
-				fail: (error) => {
-					console.error('语音下载失败:', error);
-					uni.showToast({ title: '语音加载失败', icon: 'none' });
-				}
+			playTts(value, 3).catch(error => {
+				console.error('语音播放失败:', error);
+				uni.showToast({ title: error?.message || '语音播放失败', icon: 'none' });
 			});
 		},
 		isCorrectOption(index) {
@@ -692,3 +642,4 @@ export default {
 	margin-top: 0;
 }
 </style>
+

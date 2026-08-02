@@ -205,8 +205,8 @@ router.get('/daily', async (req, res) => {
     const todayRows = await db.prepare(`
       SELECT DISTINCT ws.word, ws.mastered FROM word_status ws
       INNER JOIN words w ON w.word = ws.word
-      WHERE ws.user_id = ? AND ws.last_review_date = ? AND ${scopeSql}
-    `).all(userId, date, ...scopeParams);
+      WHERE ws.user_id = ? AND (ws.last_review_date = ? OR DATE(ws.updated_at) = ?) AND ${scopeSql}
+    `).all(userId, date, date, ...scopeParams);
     const levelNames = ['简单阶段', '普通阶段', '困难阶段'];
 
     res.json({

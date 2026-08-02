@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const crypto = require('crypto');
 const https = require('https');
 const WebSocket = require('ws');
@@ -41,14 +41,29 @@ function fetchTts(url, redirects = 0) {
 }
 router.get('/tts', async (req, res) => {
   const text = String(req.query.text || '').trim();
-  if (!text || text.length > 200) return res.status(400).json({ code: 400, message: '发音文本无效。' });
+  if (!text || text.length > 600) return res.status(400).json({ code: 400, message: '发音文本无效。' });
   const speed = Math.max(1, Math.min(5, Number(req.query.speed) || 3));
   const cacheKey = `${speed}:${text}`;
   try {
     let audio = ttsCache.get(cacheKey);
     if (!audio) {
-      const url = `https://fanyi.baidu.com/gettts?lan=en&text=${encodeURIComponent(text)}&spd=${speed}&source=web`;
-      audio = await fetchTts(url);
+      const chunks = [];
+      let remaining = text;
+      while (remaining.length) {
+        let end = Math.min(120, remaining.length);
+        if (end < remaining.length) {
+          const boundary = Math.max(remaining.lastIndexOf('. ', end), remaining.lastIndexOf('? ', end), remaining.lastIndexOf('! ', end), remaining.lastIndexOf(', ', end), remaining.lastIndexOf(' ', end));
+          if (boundary >= 45) end = boundary + 1;
+        }
+        chunks.push(remaining.slice(0, end).trim());
+        remaining = remaining.slice(end).trim();
+      }
+      const buffers = [];
+      for (const chunk of chunks.filter(Boolean)) {
+        const url = `https://fanyi.baidu.com/gettts?lan=en&text=${encodeURIComponent(chunk)}&spd=${speed}&source=web`;
+        buffers.push(await fetchTts(url));
+      }
+      audio = Buffer.concat(buffers);
       if (ttsCache.size >= 100) ttsCache.delete(ttsCache.keys().next().value);
       ttsCache.set(cacheKey, audio);
     }
@@ -143,7 +158,7 @@ function numberFromXml(xml, field) {
   return match ? Number(match[1]) : null;
 }
 function scoreOf(value) { return Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value <= 10 ? value * 10 : value))) : 0; }
-function feedbackFor(score) { return score >= 90 ? '发音很棒，继续保持！' : score >= 80 ? '发音不错，可以再标准一些。' : score >= 70 ? '发音达标，继续巩固口型和节奏。' : '建议再听一次标准发音后重新跟读。'; }
+function feedbackFor(score) { return score >= 90 ? '发音很棒，继续保持！' : score >= 80 ? '发音不错，可以再标准一些。' : score >= 70 ? '还差一点，继续调整口型和节奏。' : '建议再听一次标准发音后重新跟读。'; }
 function parseResult(xml) {
   const total = numberFromXml(xml, 'total_score');
   const score = scoreOf(total);
@@ -292,3 +307,4 @@ router.post('/evaluate', (req, res) => {
 });
 
 module.exports = router;
+

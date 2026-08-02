@@ -4,7 +4,8 @@
  */
 
 // 服务器地址（开发环境）
-export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://chatai.yanjy.top/api').replace(/\/$/, '');
+// export const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
 
 // 当前微信授权用户，未登录时不再回退到公共测试账号
 export function getCurrentUserId() { return Number(uni.getStorageSync('currentUserId') || 0); }
@@ -12,61 +13,103 @@ export function getCurrentUserId() { return Number(uni.getStorageSync('currentUs
 /**
  * 通用请求方法
  */
-export function request(url, method = 'GET', data = {}) {
+let loginPromise = null;
+
+function createRequestError(res) {
+	const error = new Error(res.data?.message || `请求失败（${res.statusCode}）`);
+	error.statusCode = res.statusCode;
+	error.code = res.data?.code;
+	return error;
+}
+
+function rawRequest(url, method = 'GET', data = {}, token = '') {
 	return new Promise((resolve, reject) => {
 		uni.request({
 			url: BASE_URL + url,
-			method: method,
-			data: data,
+			method,
+			data,
 			header: {
 				'Content-Type': 'application/json; charset=utf-8',
-				'Authorization': uni.getStorageSync('authToken') ? ('Bearer ' + uni.getStorageSync('authToken')) : ''
+				...(token ? { Authorization: `Bearer ${token}` } : {})
 			},
 			success: (res) => {
-				if (res.statusCode === 200 && res.data.code === 0) {
-					if (String(method).toUpperCase() !== 'GET') setTimeout(() => uni.$emit('achievement:check'), 250);
+				if (res.statusCode === 200 && res.data?.code === 0) {
+					if (String(method).toUpperCase() !== 'GET' && url !== '/user/wechat-login') {
+						setTimeout(() => uni.$emit('achievement:check'), 250);
+					}
 					resolve(res.data.data);
-				} else {
-					const error = new Error(res.data?.message || ('请求失败（' + res.statusCode + '）'));
-					error.statusCode = res.statusCode;
-					error.code = res.data?.code;
-					reject(error);
+					return;
 				}
+				reject(createRequestError(res));
 			},
 			fail: (err) => {
 				console.error('请求失败:', url, err);
-				reject(new Error('网络请求失败，请检查后端服务和 API 地址'));
+				reject(new Error('网络请求失败，请检查网络、后端服务和 API 地址'));
 			}
 		});
 	});
 }
 
-export function wechatLogin() {
+function loginWithWechat() {
 	return new Promise((resolve, reject) => {
 		// #ifdef MP-WEIXIN
 		wx.login({
 			timeout: 10000,
 			success(loginResult) {
 				if (!loginResult.code) return reject(new Error('未获取到微信登录凭证'));
-				uni.request({
-					url: BASE_URL + '/user/wechat-login', method: 'POST',
-					header: { 'Content-Type': 'application/json; charset=utf-8' }, data: { code: loginResult.code },
-					success(response) {
-						if (response.statusCode !== 200 || response.data?.code !== 0) { const error = new Error(response.data?.message || '微信授权登录失败'); error.statusCode = response.statusCode; error.code = response.data?.code; return reject(error); }
-						const result = response.data.data || {};
-						uni.setStorageSync('authToken', result.token || '');
+				rawRequest('/user/wechat-login', 'POST', { code: loginResult.code })
+					.then((result) => {
+						if (!result?.token) throw new Error('登录接口未返回有效凭证');
+						uni.setStorageSync('authToken', result.token);
 						uni.setStorageSync('currentUserId', Number(result.user?.id || 0));
 						uni.setStorageSync('userProfile', result.user || {});
-						resolve(result.user);
-					}, fail: () => reject(new Error('无法连接微信登录服务'))
-				});
-			}, fail: () => reject(new Error('微信登录凭证获取失败'))
+						uni.$emit('auth:ready', result.user || {});
+						resolve(result.user || {});
+					})
+					.catch(reject);
+			},
+			fail: () => reject(new Error('微信登录凭证获取失败'))
 		});
 		// #endif
 		// #ifndef MP-WEIXIN
 		reject(new Error('请在微信小程序中完成授权登录'));
 		// #endif
 	});
+}
+
+// 所有未登录请求共享同一个登录任务，相当于进入同一等待队列。
+export function wechatLogin(options = {}) {
+	const force = Boolean(options.force);
+	if (!force && uni.getStorageSync('authToken')) {
+		return Promise.resolve(uni.getStorageSync('userProfile') || {});
+	}
+	if (loginPromise) return loginPromise;
+	loginPromise = loginWithWechat().finally(() => { loginPromise = null; });
+	return loginPromise;
+}
+
+/**
+ * 通用请求：未登录先排队等待登录；401 时刷新登录并自动重试一次。
+ */
+export async function request(url, method = 'GET', data = {}, retried = false) {
+	if (url === '/user/wechat-login') return rawRequest(url, method, data);
+
+	if (!uni.getStorageSync('authToken')) await wechatLogin();
+	const requestToken = String(uni.getStorageSync('authToken') || '');
+
+	try {
+		return await rawRequest(url, method, data, requestToken);
+	} catch (error) {
+		if (Number(error?.statusCode) !== 401 || retried) throw error;
+
+		// 只删除本次请求使用的过期令牌，避免覆盖其他请求刚刷新的新令牌。
+		if (String(uni.getStorageSync('authToken') || '') === requestToken) {
+			uni.removeStorageSync('authToken');
+			uni.removeStorageSync('currentUserId');
+		}
+		await wechatLogin();
+		return request(url, method, data, true);
+	}
 }
 // ==================== 用户相关 ====================
 

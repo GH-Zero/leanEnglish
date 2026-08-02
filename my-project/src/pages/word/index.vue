@@ -1,4 +1,4 @@
-<template>
+﻿<template>
 	<view class="container">
 		<AchievementUnlockNotifier />
 		<view class="header">
@@ -40,7 +40,7 @@
 		<view class="section">
 			<text class="section-title">今日学习</text>
 			<view class="study-card progress-plan-card">
-				<view><text class="plan-text">今日掌握进度</text><text class="plan-hint">四项学习全部正确才计为已掌握</text></view>
+				<view><text class="plan-text">今日掌握进度</text><text class="plan-hint">今天完成四项学习才计入今日掌握</text></view>
 				<view class="study-plan"><text class="plan-number">{{ todayMastered }}</text><text class="plan-text"> / {{ dailyNewWords }} 词</text></view>
 			</view>
 		</view>
@@ -110,12 +110,12 @@
 			</view>
 			<view class="read-card translation-card" v-if="currentModeWord">
 				<text class="translation-label">请选择对应的英文单词</text>
-				<text class="translation-meaning">{{ currentModeWord.chinese }}</text>
+				<text class="translation-meaning">{{ displayChinese(currentModeWord) }}</text>
 				<view class="options-list translation-options">
 					<view class="option-item" v-for="(opt, i) in currentOptions" :key="i"
 						:class="{ correct: showResult && opt === currentModeWord.word, wrong: showResult && selectedOption === opt && opt !== currentModeWord.word }"
 						@click="selectEnglishOption(opt)">
-						<text class="option-text english-option">{{ opt }}</text>
+						<view class="english-option-content"><text class="option-text english-option">{{ opt }}</text><text class="option-phonetic">{{ optionPhonetic(opt) }}</text></view>
 					</view>
 				</view>
 
@@ -133,7 +133,7 @@
 				<text class="mode-close" @click="exitMode">✕ 退出</text>
 			</view>
 			<view class="write-card" v-if="currentModeWord">
-				<text class="write-meaning">{{ currentModeWord.chinese }}</text>
+				<text class="write-meaning">{{ displayChinese(currentModeWord) }}</text>
 				<text class="write-phonetic">{{ currentModeWord.phonetic_us }}</text>
 				<input class="write-input" v-model="writeInput" placeholder="请输入英文单词"
 					@confirm="checkSpelling" :disabled="showResult" />
@@ -165,7 +165,7 @@
 			<view class="speak-card" v-if="currentModeWord">
 				<text class="speak-word">{{ currentModeWord.word }}</text>
 				<text class="speak-phonetic">{{ currentModeWord.phonetic_us }}</text>
-				<text class="speak-meaning">{{ currentModeWord.chinese }}</text>
+				<text class="speak-meaning">{{ displayChinese(currentModeWord) }}</text>
 				<view class="completed-next-action" v-if="currentModeCompleted && evaluationState === 'idle'">
 					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
 				</view>
@@ -199,7 +199,9 @@
 </template>
 
 <script>
-import { BASE_URL, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats, getSettings } from '@/utils/api.js';
+import { BASE_URL, request as apiRequest, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats, getSettings } from '@/utils/api.js';
+import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
+import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 
 
 export default {
@@ -243,6 +245,7 @@ export default {
 			isRecording: false,
 			isEvaluating: false,
 			recordTimer: null,
+			autoNextTimer: null,
 			speakScore: 0,
 			evaluationState: 'idle',
 			evaluationMessage: '',
@@ -291,13 +294,54 @@ export default {
 	async onShow() {
 		await this.loadLearningSettings();
 		await Promise.all([this.loadWordCounts(), this.loadWords(), this.loadStats(), this.loadWrongCount()]);
+		this.syncTodayMastered();
 		if (this.pendingWrongMode) {
 			const mode = this.pendingWrongMode;
 			this.pendingWrongMode = '';
 			await this.startWrongMode(mode);
 		}
 	},
+	onUnload() {
+		this.clearAutoNextTimer();
+		clearTtsQueue();
+	},
 	methods: {
+		todayDateKey(value = new Date()) {
+			if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.slice(0, 10))) return value.slice(0, 10);
+			const date = value instanceof Date ? value : new Date(value);
+			if (Number.isNaN(date.getTime())) return '';
+			const pad = number => String(number).padStart(2, '0');
+			return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+		},
+		syncTodayMastered() {
+			const today = this.todayDateKey();
+			const latest = Object.entries(this.wordStatus).filter(([, status]) => {
+				if (!status?.mastered) return false;
+				const inScope = this.progressiveMode
+					? Number(status.level || 0) === Number(this.currentLevel)
+					: (!status.category || status.category === this.todayCategory);
+				if (!inScope) return false;
+				return this.todayDateKey(status.last_review_date) === today || this.todayDateKey(status.updated_at) === today;
+			}).map(([word]) => word);
+			this.todayMasteredWords = [...new Set([...(this.todayMasteredWords || []), ...latest])];
+			this.todayMastered = this.todayMasteredWords.length;
+		},		clearAutoNextTimer() {
+			if (this.autoNextTimer) {
+				clearTimeout(this.autoNextTimer);
+				this.autoNextTimer = null;
+			}
+		},
+		scheduleSpeakAutoNext() {
+			this.clearAutoNextTimer();
+			const word = this.currentModeWord?.word;
+			const index = this.modeIndex;
+			this.autoNextTimer = setTimeout(() => {
+				this.autoNextTimer = null;
+				if (this.evaluationState === 'passed' && this.modeIndex === index && this.currentModeWord?.word === word) {
+					this.nextModeWord();
+				}
+			}, 700);
+		},
 		async loadLearningSettings() {
 			let settings = uni.getStorageSync('learningSettings') || {};
 			try { settings = { ...settings, ...(await getSettings()) }; } catch (_) {}
@@ -355,12 +399,13 @@ export default {
 							if (response.statusCode === 200 && response.data.code === 0) {
 								const result = response.data.data;
 								this.speakScore = Number(result.score || 0);
-								this.evaluationState = this.speakScore >= 70 ? 'passed' : 'failed';
-								this.evaluationMessage = result.feedback || (this.speakScore >= 70 ? '发音达标，可以进入下一题。' : '还未达到 70 分，请重新跟读。');
+								this.evaluationState = this.speakScore >= PRONUNCIATION_PASS_SCORE ? 'passed' : 'failed';
+								this.evaluationMessage = result.feedback || (this.speakScore >= PRONUNCIATION_PASS_SCORE ? '发音达标，即将进入下一题。' : '还未达到 '+PRONUNCIATION_PASS_SCORE+' 分，请重新跟读。');
 								this.totalAttempts++;
-								if (this.speakScore >= 70) {
+								if (this.speakScore >= PRONUNCIATION_PASS_SCORE) {
 									this.correctCount++;
 									this.markWordKnownAPI(this.currentModeWord.word, 'speak');
+									this.scheduleSpeakAutoNext();
 								} else {
 									this.markWordUnknownAPI(this.currentModeWord.word, 'speak');
 								}
@@ -388,7 +433,7 @@ export default {
 		},
 		async loadWordCounts() {
 			try {
-				const res = await this.request('/words/count?userId=1');
+				const res = await apiRequest('/words/count');
 				if (res) {
 					const counts = {};
 					(res.stats || []).forEach(item => counts[item.level] = item.count);
@@ -404,7 +449,7 @@ export default {
 			try {
 				const categoryQuery = !this.progressiveMode && this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
 				const modeQuery = this.progressiveMode ? '&progressive=1' : `&level=${this.currentLevel}`;
-				const res = await this.request(`/words/daily?userId=1&limit=${this.dailyNewWords}${modeQuery}${categoryQuery}`);
+				const res = await apiRequest(`/words/daily?limit=${this.dailyNewWords}${modeQuery}${categoryQuery}`);
 				if (res && res.words) {
 					this.wordList = res.words;
 					this.todayStudiedWords = res.todayStudiedWords || [];
@@ -460,7 +505,7 @@ export default {
 		},
 		async loadWrongCount() {
 			try {
-				const res = await this.request('/words/wrong?userId=1&limit=1');
+				const res = await apiRequest('/words/wrong?limit=1');
 				this.wrongCount = Number(res?.total || 0);
 				this.wrongModeCounts = res?.byMode || { listen: 0, read: 0, write: 0, speak: 0 };
 			} catch (error) {
@@ -489,7 +534,7 @@ export default {
 		},
 		async startWrongMode(mode) {
 			try {
-				const res = await this.request(`/words/wrong?userId=1&limit=100&mode=${mode}`);
+				const res = await apiRequest(`/words/wrong?limit=100&mode=${mode}`);
 				if (!res.words?.length) {
 					uni.showToast({ title: '该类型错题已完成', icon: 'none' });
 					this.loadWrongCount();
@@ -649,31 +694,33 @@ export default {
 			this.currentOptions = [correct, ...distractors.map((item) => item.word)]
 				.sort(() => Math.random() - 0.5);
 		},
-		async selectEnglishOption(option) {
+		selectEnglishOption(option) {
 			if (this.selectedOption) return;
 			this.selectedOption = option;
-			const isCorrect = option === this.currentModeWord.word;
+			const word = this.currentModeWord.word;
+			const isCorrect = option === word;
 			this.totalAttempts++;
 			if (isCorrect) {
 				this.correctCount++;
-				await this.markWordKnownAPI(this.currentModeWord.word, 'read');
+				this.markWordKnownAPI(word, 'read');
 			} else {
-				await this.markWordUnknownAPI(this.currentModeWord.word, 'read');
+				this.markWordUnknownAPI(word, 'read');
 			}
-			setTimeout(() => this.nextModeWord(), 1000);
+			setTimeout(() => this.nextModeWord(), 350);
 		},
-		async selectOption(opt) {
+		selectOption(opt) {
 			if (this.selectedOption) return;
 			this.selectedOption = opt;
+			const word = this.currentModeWord.word;
 			const isCorrect = opt === this.currentModeWord.chinese;
 			this.totalAttempts++;
 			if (isCorrect) {
 				this.correctCount++;
-				await this.markWordKnownAPI(this.currentModeWord.word, 'listen');
+				this.markWordKnownAPI(word, 'listen');
 			} else {
-				await this.markWordUnknownAPI(this.currentModeWord.word, 'listen');
+				this.markWordUnknownAPI(word, 'listen');
 			}
-			setTimeout(() => this.nextModeWord(), 1000);
+			setTimeout(() => this.nextModeWord(), 350);
 		},
 		checkSpelling() {
 			if (this.showResult) return;
@@ -698,15 +745,23 @@ export default {
 			// 显示前两个字母 + 下划线
 			this.writeHint = word.substring(0, 2) + '_'.repeat(word.length - 2);
 		},
-		playWord(word) {
-			const audio = uni.createInnerAudioContext();
-			audio.src = `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(word)}&type=${this.accentIndex === 1 ? 2 : 1}`;
-			audio.play();
-			audio.onError((err) => {
-				console.error('音频播放失败:', err);
-			});
+		optionPhonetic(word) {
+			const item = [...this.modeWords, ...this.wordList].find(candidate => candidate.word === word);
+			return item?.phonetic_us || item?.phonetic_uk || '';
 		},
-		async toggleRecord() {
+		displayChinese(item) {
+			if (!item) return '';
+			const word = String(item.word || '').toLowerCase();
+			const chinese = String(item.chinese || '').trim();
+			if (word === 'one' && chinese === '一') return '一（数字 1）';
+			return chinese || '暂无中文释义';
+		},
+		playWord(word) {
+			playTts(word, 3).catch(error => {
+				console.error('单词播放失败:', error);
+				uni.showToast({ title: error?.message || '播放失败，请重试', icon: 'none' });
+			});
+		},		async toggleRecord() {
 			if (this.isEvaluating) return;
 			if (this.isRecording) {
 				this.recordManager.stop();
@@ -769,10 +824,18 @@ export default {
 		async markWordKnownAPI(word, mode) {
 			try {
 				const result = await markWordAsKnown(word, mode);
+
 				const previous = this.wordStatus[word] || { modes: {}, completed_modes: 0, mastered: false };
+				if (!this.wordStatus[word]) this.totalLearned++;
 				const modes = { ...(previous.modes || {}), [mode]: true };
-				this.wordStatus = { ...this.wordStatus, [word]: { ...previous, modes, completed_modes: Number(result?.completedModes ?? Object.values(modes).filter(Boolean).length), mastered: Boolean(result?.mastered) } };
-				if (result?.mastered && !this.todayMasteredWords.includes(word)) { this.todayMasteredWords.push(word); this.todayMastered = this.todayMasteredWords.length; }
+				const completedModes = Number(result?.completedModes ?? Object.values(modes).filter(Boolean).length);
+				const mastered = Boolean(result?.mastered) || completedModes >= 4;
+				this.wordStatus = { ...this.wordStatus, [word]: { ...previous, modes, completed_modes: completedModes, mastered } };
+				if (mastered && !this.todayMasteredWords.includes(word)) {
+					this.todayMasteredWords.push(word);
+					this.todayMastered = this.todayMasteredWords.length;
+					if (!previous.mastered) { this.categoryCompleted++; this.masteredCount++; }
+				}
 				this.markTodayStudied(word); this.loadWrongCount();
 			} catch (e) { console.error('记录模块完成失败:', e); }
 		},
@@ -780,6 +843,8 @@ export default {
 			try {
 				await markWordAsUnknown(word, mode);
 				const previous = this.wordStatus[word] || { modes: {}, completed_modes: 0, mastered: false };
+				if (!this.wordStatus[word]) this.totalLearned++;
+				if (previous.mastered) { this.masteredCount = Math.max(0, this.masteredCount - 1); this.categoryCompleted = Math.max(0, this.categoryCompleted - 1); }
 				const modes = { ...(previous.modes || {}), [mode]: false };
 				this.wordStatus = { ...this.wordStatus, [word]: { ...previous, modes, completed_modes: Object.values(modes).filter(Boolean).length, mastered: false } };
 				this.todayMasteredWords = this.todayMasteredWords.filter(item => item !== word); this.todayMastered = this.todayMasteredWords.length;
@@ -787,24 +852,6 @@ export default {
 			} catch (e) { console.error('记录模块错题失败:', e); }
 		},
 
-		// ========== 通用请求 ==========
-		request(url) {
-			return new Promise((resolve, reject) => {
-				uni.request({
-					url: BASE_URL + url,
-					method: 'GET',
-					header: { 'Content-Type': 'application/json' },
-					success: (res) => {
-						if (res.statusCode === 200 && res.data.code === 0) {
-							resolve(res.data.data);
-						} else {
-							reject(res.data.message || '请求失败');
-						}
-					},
-					fail: (err) => reject(err)
-				});
-			});
-		}
 	}
 }
 </script>
@@ -1338,7 +1385,10 @@ export default {
 	color: #7A7A7A;
 	display: block;
 }
+
+.english-option-content{display:flex;align-items:center;justify-content:space-between;width:100%;gap:18rpx}.option-phonetic{flex-shrink:0;color:#8a97a3;font-size:22rpx}
 </style>
+
 
 
 
