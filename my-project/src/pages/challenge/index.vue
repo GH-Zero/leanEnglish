@@ -114,6 +114,7 @@
 import { request as apiRequest, updateWordStats, updateGrammarStats, updateSpeakStats } from '@/utils/api.js';
 import { getAudioSettings } from '@/utils/learning-settings.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
+import { playAnswerFeedback } from '@/utils/answer-feedback.js';
 
 
 export default {
@@ -293,6 +294,7 @@ export default {
 			this.selectedOption = index;
 			this.showResult = true;
 			this.isCorrect = this.isCorrectOption(index);
+			playAnswerFeedback(this.isCorrect);
 			if (this.isCorrect) {
 				this.correctCount++;
 			}
@@ -642,4 +644,6 @@ export default {
 	margin-top: 0;
 }
 </style>
+
+
 

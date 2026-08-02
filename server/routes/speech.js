@@ -143,6 +143,21 @@ function decodeWavToPcm16(buffer) {
   return pcm;
 }
 
+function trimPcmSilence(pcm, sampleRate = 16000) {
+  if (!pcm?.length || pcm.length < sampleRate) return pcm;
+  const samples = Math.floor(pcm.length / 2);
+  const threshold = 450;
+  let first = 0;
+  let last = samples - 1;
+  while (first < samples && Math.abs(pcm.readInt16LE(first * 2)) < threshold) first++;
+  while (last > first && Math.abs(pcm.readInt16LE(last * 2)) < threshold) last--;
+  if (first >= last) return pcm;
+  const padding = Math.round(sampleRate * 0.2);
+  first = Math.max(0, first - padding);
+  last = Math.min(samples - 1, last + padding);
+  const trimmed = pcm.subarray(first * 2, (last + 1) * 2);
+  return trimmed.length >= sampleRate ? trimmed : pcm;
+}
 function isMp3(buffer, declaredFormat) {
   return declaredFormat === 'mp3' || buffer.toString('ascii', 0, 3) === 'ID3' || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0);
 }
@@ -307,4 +322,5 @@ router.post('/evaluate', (req, res) => {
 });
 
 module.exports = router;
+
 

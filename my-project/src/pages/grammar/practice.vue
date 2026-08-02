@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="page">
 		<AchievementUnlockNotifier />
     <view v-if="loading" class="loading">加载练习中…</view>
@@ -44,6 +44,7 @@
   </view>
 </template>
 <script>
+import { playAnswerFeedback } from '@/utils/answer-feedback.js';
 import { BASE_URL, getSettings } from '@/utils/api.js';
 export default {
   data() { return { loading: true, entryType: 'course', grammarId: 0, stagePractice: 0, grammar: {}, questions: [], dailyGrammarQuestions: 10, questionIndex: 0, selectedIndex: -1, answered: false, isCorrect: false, correctCount: 0, masteryResult: null, questionProgress: null, step: 'explain', optionLabels: ['A', 'B', 'C', 'D'] }; },
@@ -128,6 +129,7 @@ export default {
       if (this.selectedIndex < 0) return;
       this.answered = true;
       this.isCorrect = this.currentQuestion.options[this.selectedIndex] === this.currentQuestion.answer;
+      playAnswerFeedback(this.isCorrect);
       if (this.isCorrect) {
         this.correctCount++;
         if (!this.stagePractice && this.currentQuestion.id) {
@@ -162,3 +164,5 @@ export default {
 <style>
 .page{min-height:100vh;background:#f7f5f0;padding:28rpx}.loading{padding-top:180rpx;text-align:center;color:#777}.hero{padding:30rpx 18rpx}.eyebrow{display:block;color:#0d9488;font-size:26rpx}.title{display:block;font-size:40rpx;font-weight:700;color:#1f3a5f;margin:12rpx 0}.description{font-size:24rpx;color:#777}.panel{background:#fff;border-radius:24rpx;padding:32rpx;box-shadow:0 6rpx 20rpx rgba(31,58,95,.08)}.panel-title{display:block;font-size:32rpx;font-weight:700;color:#1f3a5f;margin-bottom:20rpx}.explanation,.example{display:block;font-size:28rpx;line-height:1.7;color:#444}.examples{background:#eef8f7;padding:20rpx;border-radius:16rpx;margin:24rpx 0}.examples-title{display:block;color:#0d9488;font-weight:700;margin-bottom:10rpx}.primary,.secondary{margin-top:28rpx;border-radius:14rpx;font-size:30rpx}.primary{background:#1f3a5f;color:#fff}.secondary{background:#eef8f7;color:#0d9488}.progress-row{display:flex;justify-content:space-between;color:#777;font-size:26rpx}.bar{height:12rpx;background:#e8ecec;border-radius:10rpx;margin:18rpx 0 38rpx}.bar-value{height:100%;background:#0d9488;border-radius:10rpx}.question{display:block;font-size:36rpx;font-weight:700;color:#1f3a5f;line-height:1.5}.question-translation{display:block;margin:10rpx 0 28rpx;padding:14rpx 18rpx;border-radius:12rpx;background:#f5f8fa;color:#657786;font-size:25rpx;line-height:1.55}.option{display:flex;align-items:center;gap:18rpx;padding:25rpx 20rpx;border:2rpx solid #edf0f2;border-radius:16rpx;margin-bottom:16rpx;color:#333;font-size:30rpx}.option.selected{border-color:#0d9488;background:#eefaf8}.option.correct{border-color:#16a34a;background:#f0fdf4}.option.wrong{border-color:#ef4444;background:#fef2f2}.option-key{color:#0d9488;font-weight:700}.answer-box{padding:20rpx;border-radius:14rpx;margin:24rpx 0;font-size:27rpx;color:#555}.good{background:#f0fdf4}.bad{background:#fff7ed}.answer-title{display:block;font-weight:700;margin-bottom:8rpx}.finished{text-align:center;padding:70rpx 32rpx}.finish-icon{font-size:86rpx;display:block}.finish-title{display:block;font-size:42rpx;font-weight:700;color:#1f3a5f;margin:20rpx 0}.score{font-size:32rpx;color:#0d9488}.mastery-result{margin:25rpx 0 8rpx;padding:22rpx;border-radius:16rpx;background:#f1f7f6;text-align:left}.mastery-status{display:block;font-size:28rpx;font-weight:800;color:#0d9488}.mastery-detail,.mastery-rule{display:block;margin-top:9rpx;font-size:23rpx;line-height:1.5;color:#647582}.mastery-rule{color:#8b6b3d}.question-cycle{display:block;margin-top:16rpx;font-size:23rpx;color:#778793}
 </style>
+
+

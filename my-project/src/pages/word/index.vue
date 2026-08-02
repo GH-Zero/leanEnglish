@@ -202,6 +202,7 @@
 import { BASE_URL, request as apiRequest, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats, getSettings } from '@/utils/api.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
+import { playAnswerFeedback } from '@/utils/answer-feedback.js';
 
 
 export default {
@@ -246,6 +247,10 @@ export default {
 			isEvaluating: false,
 			recordTimer: null,
 			autoNextTimer: null,
+			questionAudioTimer: null,
+			modeAdvanceTimer: null,
+			nextUnlockTimer: null,
+			nextSwitching: false,
 			speakScore: 0,
 			evaluationState: 'idle',
 			evaluationMessage: '',
@@ -302,7 +307,7 @@ export default {
 		}
 	},
 	onUnload() {
-		this.clearAutoNextTimer();
+		this.clearModeTimers();
 		clearTtsQueue();
 	},
 	methods: {
@@ -330,6 +335,40 @@ export default {
 				clearTimeout(this.autoNextTimer);
 				this.autoNextTimer = null;
 			}
+		},
+		clearQuestionAudioTimer() {
+			if (this.questionAudioTimer) clearTimeout(this.questionAudioTimer);
+			this.questionAudioTimer = null;
+		},
+		clearModeAdvanceTimer() {
+			if (this.modeAdvanceTimer) clearTimeout(this.modeAdvanceTimer);
+			this.modeAdvanceTimer = null;
+		},
+		clearModeTimers() {
+			this.clearAutoNextTimer();
+			this.clearQuestionAudioTimer();
+			this.clearModeAdvanceTimer();
+			if (this.nextUnlockTimer) clearTimeout(this.nextUnlockTimer);
+			this.nextUnlockTimer = null;
+			this.nextSwitching = false;
+		},
+		scheduleCurrentWordAudio(delay = 300) {
+			this.clearQuestionAudioTimer();
+			const index = this.modeIndex;
+			const word = this.currentModeWord?.word;
+			if (!this.autoPlay || !word) return;
+			this.questionAudioTimer = setTimeout(() => {
+				this.questionAudioTimer = null;
+				if (this.modeIndex === index && this.currentModeWord?.word === word) this.playWord(word);
+			}, delay);
+		},
+		scheduleModeNext(delay = 350) {
+			this.clearModeAdvanceTimer();
+			const index = this.modeIndex;
+			this.modeAdvanceTimer = setTimeout(() => {
+				this.modeAdvanceTimer = null;
+				if (this.modeIndex === index) this.nextModeWord();
+			}, delay);
 		},
 		scheduleSpeakAutoNext() {
 			this.clearAutoNextTimer();
@@ -393,6 +432,7 @@ export default {
 						method: 'POST',
 						header: { 'Content-Type': 'application/json' },
 						data: { audioBase64, word, category: 'read_word', audioFormat },
+						timeout: 20000,
 						success: (response) => {
 							uni.hideLoading();
 							this.isEvaluating = false;
@@ -400,6 +440,7 @@ export default {
 								const result = response.data.data;
 								this.speakScore = Number(result.score || 0);
 								this.evaluationState = this.speakScore >= PRONUNCIATION_PASS_SCORE ? 'passed' : 'failed';
+								playAnswerFeedback(this.speakScore >= PRONUNCIATION_PASS_SCORE);
 								this.evaluationMessage = result.feedback || (this.speakScore >= PRONUNCIATION_PASS_SCORE ? '发音达标，即将进入下一题。' : '还未达到 '+PRONUNCIATION_PASS_SCORE+' 分，请重新跟读。');
 								this.totalAttempts++;
 								if (this.speakScore >= PRONUNCIATION_PASS_SCORE) {
@@ -587,6 +628,7 @@ export default {
 			}
 		},
 		nextWord() {
+			clearTtsQueue();
 			this.showBack = false;
 			this.currentWordIndex++;
 			if (this.currentWordIndex >= this.wordList.length) {
@@ -597,6 +639,8 @@ export default {
 
 		// ========== 学习模式 ==========
 		async startMode(mode) {
+			this.clearModeTimers();
+			clearTtsQueue();
 			if (this.wordList.length === 0) {
 				uni.showToast({ title: '请先加载单词', icon: 'none' });
 				return;
@@ -621,15 +665,12 @@ export default {
 
 			if (mode === 'listen') {
 				this.generateOptions();
-				// 自动播放
-				setTimeout(() => {
-					if (this.autoPlay && this.currentModeWord) {
-						this.playWord(this.currentModeWord.word);
-					}
-				}, 500);
+				this.scheduleCurrentWordAudio(500);
 			}
 		},
 		async exitMode() {
+			this.clearModeTimers();
+			clearTtsQueue();
 			this.learningMode = '';
 			this.isWrongBookMode = false;
 			this.modeWords = [];
@@ -647,6 +688,12 @@ export default {
 			]);
 		},
 		nextModeWord() {
+			if (this.nextSwitching) return;
+			this.nextSwitching = true;
+			this.clearAutoNextTimer();
+			this.clearQuestionAudioTimer();
+			this.clearModeAdvanceTimer();
+			clearTtsQueue();
 			this.modeIndex++;
 			this.showBack = false;
 			this.selectedOption = '';
@@ -659,6 +706,7 @@ export default {
 			this.isRecording = false;
 
 			if (this.modeIndex >= this.modeWords.length) {
+				this.nextSwitching = false;
 				uni.showToast({ title: '本轮练习完成！', icon: 'success' });
 				setTimeout(() => this.exitMode(), 1500);
 				return;
@@ -670,12 +718,12 @@ export default {
 
 			if (this.learningMode === 'listen') {
 				this.generateOptions();
-				setTimeout(() => {
-					if (this.autoPlay && this.currentModeWord) {
-						this.playWord(this.currentModeWord.word);
-					}
-				}, 300);
+				this.scheduleCurrentWordAudio(300);
 			}
+			this.nextUnlockTimer = setTimeout(() => {
+				this.nextUnlockTimer = null;
+				this.nextSwitching = false;
+			}, 350);
 		},
 		generateOptions() {
 			if (!this.currentModeWord) return;
@@ -699,6 +747,7 @@ export default {
 			this.selectedOption = option;
 			const word = this.currentModeWord.word;
 			const isCorrect = option === word;
+			playAnswerFeedback(isCorrect);
 			this.totalAttempts++;
 			if (isCorrect) {
 				this.correctCount++;
@@ -706,13 +755,14 @@ export default {
 			} else {
 				this.markWordUnknownAPI(word, 'read');
 			}
-			setTimeout(() => this.nextModeWord(), 350);
+			this.scheduleModeNext(350);
 		},
 		selectOption(opt) {
 			if (this.selectedOption) return;
 			this.selectedOption = opt;
 			const word = this.currentModeWord.word;
 			const isCorrect = opt === this.currentModeWord.chinese;
+			playAnswerFeedback(isCorrect);
 			this.totalAttempts++;
 			if (isCorrect) {
 				this.correctCount++;
@@ -720,7 +770,7 @@ export default {
 			} else {
 				this.markWordUnknownAPI(word, 'listen');
 			}
-			setTimeout(() => this.nextModeWord(), 350);
+			this.scheduleModeNext(350);
 		},
 		checkSpelling() {
 			if (this.showResult) return;
@@ -731,6 +781,7 @@ export default {
 			const correct = this.currentModeWord.word.toLowerCase();
 			const input = this.writeInput.trim().toLowerCase();
 			this.writeResult = input === correct ? 'correct' : 'wrong';
+			playAnswerFeedback(input === correct);
 			this.totalAttempts++;
 			if (input === correct) {
 				this.correctCount++;
@@ -771,8 +822,8 @@ export default {
 			if (!granted) return;
 			this.speakScore = 0;
 			this.isRecording = true;
-			this.recordManager.start({ duration: 10000, sampleRate: 16000, numberOfChannels: 1, format: 'wav' });
-			this.recordTimer = setTimeout(() => { if (this.isRecording) this.recordManager.stop(); }, 5000);
+			this.recordManager.start({ duration: 4000, sampleRate: 16000, numberOfChannels: 1, encodeBitRate: 48000, format: 'mp3' });
+			this.recordTimer = setTimeout(() => { if (this.isRecording) this.recordManager.stop(); }, 4000);
 		},
 		ensureRecordPermission() {
 			return new Promise((resolve) => {
@@ -1388,6 +1439,9 @@ export default {
 
 .english-option-content{display:flex;align-items:center;justify-content:space-between;width:100%;gap:18rpx}.option-phonetic{flex-shrink:0;color:#8a97a3;font-size:22rpx}
 </style>
+
+
+
 
 
 

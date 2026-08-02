@@ -105,6 +105,7 @@ import { BASE_URL, evaluateSpeech, getPhoneticProgress, updatePhoneticProgress, 
 import { getAudioSettings } from '@/utils/learning-settings.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
+import { playAnswerFeedback } from '@/utils/answer-feedback.js';
 
 
 export default {
@@ -355,6 +356,7 @@ export default {
 				
 				if (result && Number.isFinite(Number(result.score))) {
 					this.score = result.score;
+					playAnswerFeedback(Number(this.score) >= PRONUNCIATION_PASS_SCORE);
 					this.scoreFeedback = result.feedback || '';
 					this.recordedPlaybackUrl = result.playbackPath ? BASE_URL + result.playbackPath : '';
 					this.showScore = true;
@@ -831,6 +833,8 @@ export default {
 
 /* 紧凑版课程布局 */
 .header{padding:8rpx 0 10rpx}.title{font-size:32rpx}.subtitle{margin-top:4rpx;font-size:19rpx}.section{margin:15rpx 0}.progress-section{margin-bottom:12rpx}.progress-card{padding:20rpx 22rpx}.progress-info{margin-bottom:10rpx}.progress-text,.progress-percent{font-size:24rpx}.progress-bar{height:14rpx}.section-title{margin-bottom:10rpx;font-size:27rpx}.category-list{margin-bottom:8rpx}.category-item{padding:14rpx 34rpx;border-radius:15rpx}.category-text{font-size:24rpx}.phonetic-scroll{height:calc(100vh - 490rpx)}.phonetic-item{padding:19rpx 20rpx}.phonetic-symbol{width:120rpx;font-size:32rpx}.phonetic-example{font-size:25rpx}.phonetic-chinese{margin-top:2rpx;font-size:20rpx}.phonetic-actions{gap:12rpx}.play-btn{margin-right:2rpx;font-size:32rpx}.practice-btn{padding:8rpx 16rpx;font-size:22rpx}.score-status{flex-shrink:0;min-width:72rpx;text-align:center;color:#9aa3ab}.best-score,.passed-label{display:block;font-size:17rpx;line-height:1.35}.score-status.passed{color:#0b8f83}.passed-label{font-weight:700}.phonetic-item.mastered{background:#fbfefd}</style>
+
+
 
 
 
