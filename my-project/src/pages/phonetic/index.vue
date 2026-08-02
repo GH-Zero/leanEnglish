@@ -46,7 +46,10 @@
 						<text class="phonetic-chinese">{{ item.chinese }}</text>
 					</view>
 					<view class="phonetic-actions">
-						<text class="passed-tag" v-if="isPhoneticMastered(item)">✓ 已通过</text>
+						<view class="score-status" :class="{ passed: isPhoneticMastered(item) }">
+							<text class="best-score">{{ phoneticScoreLabel(item) }}</text>
+							<text class="passed-label" v-if="isPhoneticMastered(item)">已通过</text>
+						</view>
 						<text class="play-btn" @click="playSound(item.symbol, item.example, item.chinese)">🔊</text>
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
 					</view>
@@ -177,13 +180,21 @@ export default {
 				this.listLoading = false;
 			}
 		},
+		phoneticProgressOf(item) {
+			return this.phoneticProgress?.[item?.symbol] || null;
+		},
 		isPhoneticMastered(item) {
-			return Boolean(this.phoneticProgress?.[item?.symbol]?.mastered);
+			return Boolean(this.phoneticProgressOf(item)?.mastered);
+		},
+		phoneticScoreLabel(item) {
+			const progress = this.phoneticProgressOf(item);
+			return progress && Number(progress.attempts || 0) > 0 ? `最高 ${Number(progress.best_score || progress.score || 0)}分` : '未进行';
 		},
 		async loadProgress() {
 			try {
 				const progress = await getPhoneticProgress();
 				if (progress) {
+					this.phoneticProgress = progress;
 					let count = 0;
 					for (const key in progress) {
 						if (progress[key] && progress[key].mastered) count++;
@@ -195,6 +206,7 @@ export default {
 				// 从本地 storage 读取
 				try {
 					const local = uni.getStorageSync('phoneticProgress') || {};
+					this.phoneticProgress = local;
 					let count = 0;
 					for (const key in local) {
 						if (local[key] && local[key].mastered) count++;
@@ -369,18 +381,18 @@ export default {
 				await updatePhoneticStats(1);
 				// 更新本地音标进度
 				const phoneticId = this.currentPractice.symbol;
-				if (this.score >= PRONUNCIATION_PASS_SCORE) {
-					const progressResult = await updatePhoneticProgress(phoneticId, this.score);
-					this.phoneticProgress = { ...this.phoneticProgress, [phoneticId]: { ...(this.phoneticProgress[phoneticId] || {}), ...progressResult, mastered: true } };
-					// 检查是否已掌握（评分达到统一通过线视为掌握）
-					const local = uni.getStorageSync('phoneticProgress') || {};
-					if (!local[phoneticId] || !local[phoneticId].mastered) {
-						local[phoneticId] = { mastered: true, score: this.score };
-						uni.setStorageSync('phoneticProgress', local);
-						this.masteredCount++;
-					}
-				}
-			} catch (error) {
+				const previous = this.phoneticProgress[phoneticId] || {};
+				// 无论是否通过都保存，服务端负责保留历史最高分。
+				const progressResult = await updatePhoneticProgress(phoneticId, this.score);
+				const nextProgress = { ...previous, ...progressResult, attempts: Number(previous.attempts || 0) + 1 };
+				this.phoneticProgress = { ...this.phoneticProgress, [phoneticId]: nextProgress };
+				const local = uni.getStorageSync('phoneticProgress') || {};
+				local[phoneticId] = nextProgress;
+				uni.setStorageSync('phoneticProgress', local);
+				this.masteredCount = Object.values(this.phoneticProgress).filter(item => item?.mastered).length;
+				updatePhoneticStats(1).catch(error => console.error('更新音标练习统计失败:', error));
+			}
+			catch (error) {
 				console.error('更新音标统计API失败:', error);
 			}
 		},
@@ -818,5 +830,10 @@ export default {
 }
 
 /* 紧凑版课程布局 */
-.header{padding:8rpx 0 10rpx}.title{font-size:32rpx}.subtitle{margin-top:4rpx;font-size:19rpx}.section{margin:15rpx 0}.progress-section{margin-bottom:12rpx}.progress-card{padding:20rpx 22rpx}.progress-info{margin-bottom:10rpx}.progress-text,.progress-percent{font-size:24rpx}.progress-bar{height:14rpx}.section-title{margin-bottom:10rpx;font-size:27rpx}.category-list{margin-bottom:8rpx}.category-item{padding:14rpx 34rpx;border-radius:15rpx}.category-text{font-size:24rpx}.phonetic-scroll{height:calc(100vh - 490rpx)}.phonetic-item{padding:19rpx 20rpx}.phonetic-symbol{width:120rpx;font-size:32rpx}.phonetic-example{font-size:25rpx}.phonetic-chinese{margin-top:2rpx;font-size:20rpx}.phonetic-actions{gap:12rpx}.play-btn{margin-right:2rpx;font-size:32rpx}.practice-btn{padding:8rpx 16rpx;font-size:22rpx}.passed-tag{flex-shrink:0;padding:5rpx 10rpx;border-radius:15rpx;background:#e7f7f3;color:#0b8f83;font-size:18rpx;font-weight:700}.phonetic-item.mastered{background:#fbfefd}</style>
+.header{padding:8rpx 0 10rpx}.title{font-size:32rpx}.subtitle{margin-top:4rpx;font-size:19rpx}.section{margin:15rpx 0}.progress-section{margin-bottom:12rpx}.progress-card{padding:20rpx 22rpx}.progress-info{margin-bottom:10rpx}.progress-text,.progress-percent{font-size:24rpx}.progress-bar{height:14rpx}.section-title{margin-bottom:10rpx;font-size:27rpx}.category-list{margin-bottom:8rpx}.category-item{padding:14rpx 34rpx;border-radius:15rpx}.category-text{font-size:24rpx}.phonetic-scroll{height:calc(100vh - 490rpx)}.phonetic-item{padding:19rpx 20rpx}.phonetic-symbol{width:120rpx;font-size:32rpx}.phonetic-example{font-size:25rpx}.phonetic-chinese{margin-top:2rpx;font-size:20rpx}.phonetic-actions{gap:12rpx}.play-btn{margin-right:2rpx;font-size:32rpx}.practice-btn{padding:8rpx 16rpx;font-size:22rpx}.score-status{flex-shrink:0;min-width:72rpx;text-align:center;color:#9aa3ab}.best-score,.passed-label{display:block;font-size:17rpx;line-height:1.35}.score-status.passed{color:#0b8f83}.passed-label{font-weight:700}.phonetic-item.mastered{background:#fbfefd}</style>
+
+
+
+
+
 
