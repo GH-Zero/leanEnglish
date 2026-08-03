@@ -180,6 +180,7 @@ export default {
 	padding: 20rpx;
 	background-color: #F7F5F0;
 	min-height: 100vh;
+	box-sizing: border-box;
 }
 
 .header {
@@ -202,6 +203,9 @@ export default {
 }
 
 .overview-card {
+	position: sticky;
+	top: 12rpx;
+	z-index: 5;
 	display: flex;
 	justify-content: space-around;
 	background-color: #1F3A5F;

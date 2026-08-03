@@ -2,7 +2,7 @@
 	<view class="container">
 		<AchievementUnlockNotifier />
 		<view class="header">
-			<text class="title">{{ entryType === 'daily' ? '今日单词任务' : '单词课程' }}</text>
+			<text class="title">{{ entryType === 'daily' ? '今日单词任务' : '单词词库' }}</text>
 			<text class="subtitle">艾宾浩斯科学记忆</text>
 		</view>
 		<!-- 固定学习统计：页面滚动时保持在顶部 -->
@@ -12,8 +12,31 @@
 			<view class="stat-item"><text class="stat-number">{{ accuracy }}%</text><text class="stat-label">正确率</text></view>
 			<view class="stat-item wrong-entry" @click="openWrongBook"><text class="stat-number wrong-number">{{ wrongCount }}</text><text class="stat-label">错题</text></view>
 		</view>		<animated-loading v-if="loading && !wordList.length" text="正在加载单词数据"></animated-loading>
+		<template v-else>
+		<!-- 单词词库：词库进度与难度等级 -->
+		<view class="section" v-if="entryType === 'course'">
+			<text class="section-title">词库进度</text>
+			<view class="daily-category-card">
+				<view class="category-main">
+					<text class="category-label">单词词库</text>
+					<text class="category-name">已掌握 {{ masteredCount }} / {{ wordBankTotal }} 词</text>
+					<text class="category-desc">按难度等级循序渐进掌握</text>
+				</view>
+				<view class="category-meta">
+					<text>当前等级：{{ levelName(currentLevel) }}</text>
+					<text>完成本等级单词后解锁下一级</text>
+				</view>
+			</view>
+			<view class="level-tabs">
+				<view v-for="item in levelStats" :key="item.level" class="level-tab" :class="{ active: currentLevel === item.level }" @click="selectLevel(item.level)">
+					<text class="level-name">{{ levelName(item.level) }}</text>
+					<text class="level-progress">{{ item.mastered }}/{{ item.total }} 词</text>
+					<view class="level-bar"><view class="level-fill" :style="{ width: (item.total ? (item.mastered * 100 / item.total) : 0) + '%' }"></view></view>
+				</view>
+			</view>
+		</view>
 		<!-- 每日单词类型 -->
-		<view class="section">
+		<view class="section" v-else>
 			<text class="section-title">{{ progressiveMode ? '循序渐进学习' : '每日单词类型' }}</text>
 			<view class="daily-category-card">
 				<view class="category-main">
@@ -38,7 +61,7 @@
 			</scroll-view>
 		</view>
 		<!-- 今日学习统计 -->
-		<view class="section">
+		<view class="section" v-if="entryType !== 'course'">
 			<text class="section-title">今日学习</text>
 			<view class="study-card progress-plan-card">
 				<view><text class="plan-text">今日掌握进度</text><text class="plan-hint">今天完成四项学习才计入今日掌握</text></view>
@@ -73,13 +96,18 @@
 			</view>
 		</view>
 
+		<!-- 答题弹窗：四种模式统一在弹窗内展示 -->
+		<view class="mode-modal" v-if="learningMode">
+			<view class="mode-mask" @click="exitMode"></view>
+			<view class="mode-panel">
+				<view class="mode-head">
+					<text class="mode-head-title">{{ modeTitle }}</text>
+					<text class="mode-head-progress">{{ entryType === 'daily' ? '第 ' + (modeIndex + 1) + ' / ' + modeWords.length + ' 词 · ' : '' }}本词 {{ currentModeProgress }}/4 模块完成</text>
+					<text class="mode-head-close" @click="exitMode">✕</text>
+				</view>
+				<scroll-view class="mode-scroll" scroll-y>
 		<!-- 听音辨义模式 -->
 		<view class="section" v-if="learningMode === 'listen'">
-			<view class="mode-header">
-				<text class="mode-title">{{ isWrongBookMode ? '错题重练·听音辨义' : '听音辨义' }}</text>
-				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
-				<text class="mode-close" @click="exitMode">✕ 退出</text>
-			</view>
 			<view class="listen-card" v-if="currentModeWord">
 				<text class="listen-word">{{ currentModeWord.word }}</text>
 				<text class="listen-phonetic">{{ currentModeWord.phonetic_us }}</text>
@@ -96,19 +124,11 @@
 					</view>
 				</view>
 
-				<view class="completed-next-action" v-if="currentModeCompleted && !showResult">
-					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
-				</view>
 			</view>
 		</view>
 
 		<!-- 中文选英文模式 -->
 		<view class="section" v-if="learningMode === 'read'">
-			<view class="mode-header">
-				<text class="mode-title">{{ isWrongBookMode ? '错题重练·中文选英文' : '中文选英文' }}</text>
-				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
-				<text class="mode-close" @click="exitMode">✕ 退出</text>
-			</view>
 			<view class="read-card translation-card" v-if="currentModeWord">
 				<text class="translation-label">请选择对应的英文单词</text>
 				<text class="translation-meaning">{{ displayChinese(currentModeWord) }}</text>
@@ -120,19 +140,11 @@
 					</view>
 				</view>
 
-				<view class="completed-next-action" v-if="currentModeCompleted && !showResult">
-					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
-				</view>
 			</view>
 		</view>
 
 		<!-- 拼写默写模式 -->
 		<view class="section" v-if="learningMode === 'write'">
-			<view class="mode-header">
-				<text class="mode-title">{{ isWrongBookMode ? '错题重练·拼写默写' : '拼写默写' }}</text>
-				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
-				<text class="mode-close" @click="exitMode">✕ 退出</text>
-			</view>
 			<view class="write-card" v-if="currentModeWord">
 				<text class="write-meaning">{{ displayChinese(currentModeWord) }}</text>
 				<text class="write-phonetic">{{ currentModeWord.phonetic_us }}</text>
@@ -140,7 +152,6 @@
 					@confirm="checkSpelling" :disabled="showResult" />
 				<view class="write-actions">
 					<text class="action-btn submit" @click="checkSpelling" v-if="!showResult">确认</text>
-					<text class="action-btn next" @click="nextModeWord" v-else>下一个</text>
 				</view>
 				<text class="write-result" v-if="showResult">
 					{{ writeResult === 'correct' ? '✅ 正确！' : '❌ 正确答案：' + currentModeWord.word }}
@@ -150,26 +161,15 @@
 				</view>
 				<text class="write-hint-text" v-if="writeHint">{{ writeHint }}</text>
 
-				<view class="completed-next-action" v-if="currentModeCompleted && !showResult">
-					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
-				</view>
 			</view>
 		</view>
 
 		<!-- 单词跟读模式 -->
 		<view class="section" v-if="learningMode === 'speak'">
-			<view class="mode-header">
-				<text class="mode-title">{{ isWrongBookMode ? '错题重练·单词跟读' : '单词跟读' }}</text>
-				<text class="mode-progress">第 {{ modeIndex + 1 }} / {{ modeWords.length }} 词 · 本词完成 {{ currentModeProgress }} / 4 项</text>
-				<text class="mode-close" @click="exitMode">✕ 退出</text>
-			</view>
 			<view class="speak-card" v-if="currentModeWord">
 				<text class="speak-word">{{ currentModeWord.word }}</text>
 				<text class="speak-phonetic">{{ currentModeWord.phonetic_us }}</text>
 				<text class="speak-meaning">{{ displayChinese(currentModeWord) }}</text>
-				<view class="completed-next-action" v-if="currentModeCompleted && evaluationState === 'idle'">
-					<text class="action-btn next" @click="nextModeWord">下一题 ›</text>
-				</view>
 				<view class="speak-actions">
 					<view class="speak-play action-control" @click="playWord(currentModeWord.word)">
 						<text class="play-icon">🔊</text>
@@ -187,15 +187,29 @@
 					<text class="score-text" v-if="evaluationState !== 'error'">发音评分：{{ speakScore }}分</text>
 					<view class="score-bar" v-if="evaluationState !== 'error'"><view class="score-fill" :style="{ width: speakScore + '%' }"></view></view>
 					<text class="evaluation-message">{{ evaluationMessage }}</text>
-					<view class="evaluation-actions">
-						<text class="action-btn next" v-if="evaluationState === 'passed'" @click="nextModeWord">下一题</text>
-						<text class="action-btn retry" v-else @click="resetSpeakEvaluation">重新跟读</text>
-					</view>
 				</view>
 			</view>
 		</view>
-
-
+				</scroll-view>
+				<view class="mode-footer" v-if="modeNextVisible">
+					<view class="action-btn next mode-next-btn" @click="nextModeWord">下一题</view>
+				</view>
+			</view>
+		</view>
+		<!-- 今日任务完成庆祝 -->
+		<view v-if="dailyTaskCelebration" class="dt-celebrate-mask" @click="closeDailyTaskCelebration">
+			<view class="dt-fireworks">
+				<view v-for="(spark, i) in celebrationSparks" :key="i" class="dt-spark" :style="sparkStyle(spark)"></view>
+			</view>
+			<view class="dt-celebrate-card">
+				<view class="dt-celebrate-ring"></view>
+				<text class="dt-celebrate-icon">🎉</text>
+				<text class="dt-celebrate-title">今日任务完成！</text>
+				<text class="dt-celebrate-sub">已完成今日 {{ dailyNewWords }} 个单词的四项学习</text>
+				<view class="dt-celebrate-btn" @click="closeDailyTaskCelebration">太棒了</view>
+			</view>
+		</view>
+		</template>
 	</view>
 </template>
 
@@ -269,7 +283,12 @@ export default {
 			totalAttempts: 0,
 			levelCounts: {},
 			loading: firstLoad,
-			firstLoad
+			firstLoad,
+			lastAnswerCorrect: false,
+			dailyTaskCelebrated: false,
+			dailyTaskCelebration: false,
+			dailyFanfareAudio: null,
+			celebrationSparks: []
 		}
 	},
 	computed: {
@@ -293,6 +312,28 @@ export default {
 		currentModeCompleted() {
 			const status = this.currentModeWord ? this.wordStatus[this.currentModeWord.word] : null;
 			return Boolean(status?.modes?.[this.learningMode]);
+		},
+		wordBankTotal() {
+			return Object.values(this.levelCounts || {}).reduce((sum, n) => sum + Number(n || 0), 0);
+		},
+		levelStats() {
+			const counts = this.levelCounts || {};
+			const mastered = { 0: 0, 1: 0, 2: 0 };
+			Object.values(this.wordStatus || {}).forEach(st => {
+				const lv = Number(st.level);
+				if (lv in mastered && st.mastered) mastered[lv]++;
+			});
+			return [0, 1, 2].map(lv => ({ level: lv, total: Number(counts[lv] || 0), mastered: mastered[lv] || 0 }));
+		},
+		modeTitle() {
+			const labels = { listen: '听音辨义', read: '中文选英文', write: '拼写默写', speak: '单词跟读' };
+			const base = labels[this.learningMode] || '练习';
+			return this.isWrongBookMode ? '错题重练 · ' + base : base;
+		},
+		modeNextVisible() {
+			if (this.learningMode === 'speak') return this.evaluationState !== 'idle' && !this.isEvaluating;
+			if (this.learningMode === 'write') return this.showResult;
+			return this.showResult && !this.lastAnswerCorrect;
 		}
 	},
 	onLoad(options = {}) {
@@ -313,6 +354,7 @@ export default {
 	onUnload() {
 		this.clearModeTimers();
 		clearTtsQueue();
+		this.clearDailyFanfare();
 	},
 	methods: {
 		todayDateKey(value = new Date()) {
@@ -492,8 +534,9 @@ export default {
 		async loadWords() {
 			if (this.firstLoad) { this.loading = true; this.firstLoad = false }
 			try {
-				const categoryQuery = !this.progressiveMode && this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
-				const modeQuery = this.progressiveMode ? '&progressive=1' : `&level=${this.currentLevel}`;
+				const isCourse = this.entryType === 'course';
+				const categoryQuery = !isCourse && !this.progressiveMode && this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
+				const modeQuery = isCourse ? `&level=${this.currentLevel}` : (this.progressiveMode ? '&progressive=1' : `&level=${this.currentLevel}`);
 				const res = await apiRequest(`/words/daily?limit=${this.dailyNewWords}${modeQuery}${categoryQuery}`);
 				if (res && res.words) {
 					this.wordList = res.words;
@@ -579,16 +622,24 @@ export default {
 		},
 		async startWrongMode(mode) {
 			try {
+				await this.ensureWordStatusLoaded();
 				const res = await apiRequest(`/words/wrong?limit=100&mode=${mode}`);
 				if (!res.words?.length) {
 					uni.showToast({ title: '该类型错题已完成', icon: 'none' });
 					this.loadWrongCount();
 					return;
 				}
+				const pending = res.words.filter(item => !(this.wordStatus[item.word]?.modes?.[mode]));
+				if (!pending.length) {
+					uni.showToast({ title: '该类型错题已全部完成', icon: 'none' });
+					this.loadWrongCount();
+					return;
+				}
 				this.learningMode = mode;
 				this.isWrongBookMode = true;
-				this.modeWords = res.words;
+				this.modeWords = pending;
 				this.modeIndex = 0;
+				this.lastAnswerCorrect = false;
 				this.showBack = false;
 				this.selectedOption = '';
 				this.writeInput = '';
@@ -605,6 +656,9 @@ export default {
 		},		selectLevel(level) {
 			this.currentLevel = level;
 			this.loadWords();
+		},
+		levelName(level) {
+			return ['简单阶段', '普通阶段', '困难阶段'][Number(level)] || '未知等级';
 		},
 		flipCard() {
 			this.showBack = !this.showBack;
@@ -642,6 +696,11 @@ export default {
 		},
 
 		// ========== 学习模式 ==========
+		async ensureWordStatusLoaded() {
+			if (!this.wordStatus || Object.keys(this.wordStatus).length) return;
+			await this.loadStats();
+		},
+
 		async startMode(mode) {
 			this.clearModeTimers();
 			clearTtsQueue();
@@ -649,10 +708,25 @@ export default {
 				uni.showToast({ title: '请先加载单词', icon: 'none' });
 				return;
 			}
+			await this.ensureWordStatusLoaded();
+			let pool = [...this.wordList];
+			try {
+				const more = await apiRequest(`/words/daily?limit=60${this.entryType === 'course' ? '&level=' + this.currentLevel : (this.progressiveMode ? '&progressive=1' : '&level=' + this.currentLevel)}`);
+				if (more?.words?.length) {
+					const seen = new Set(pool.map(item => item.word));
+					pool = [...pool, ...more.words.filter(item => !seen.has(item.word))];
+				}
+			} catch (e) {}
+			const pending = pool.filter(item => !(this.wordStatus[item.word]?.modes?.[mode]));
+			if (!pending.length) {
+				uni.showToast({ title: '本模式单词已全部完成', icon: 'none' });
+				return;
+			}
 			this.learningMode = mode;
 			this.isWrongBookMode = false;
-			this.modeWords = [...this.wordList];
+			this.modeWords = pending.slice(0, 20);
 			this.modeIndex = 0;
+			this.lastAnswerCorrect = false;
 			this.showBack = false;
 			this.selectedOption = '';
 			this.writeInput = '';
@@ -680,6 +754,7 @@ export default {
 			this.modeWords = [];
 			this.modeIndex = 0;
 			this.showBack = false;
+			this.lastAnswerCorrect = false;
 			this.selectedOption = '';
 			this.writeInput = '';
 			this.writeResult = '';
@@ -699,6 +774,10 @@ export default {
 			this.clearModeAdvanceTimer();
 			clearTtsQueue();
 			this.modeIndex++;
+			while (this.modeIndex < this.modeWords.length && this.wordStatus[this.modeWords[this.modeIndex].word]?.modes?.[this.learningMode]) {
+				this.modeIndex++;
+			}
+			this.lastAnswerCorrect = false;
 			this.showBack = false;
 			this.selectedOption = '';
 			this.writeInput = '';
@@ -753,13 +832,14 @@ export default {
 			const isCorrect = option === word;
 			playAnswerFeedback(isCorrect);
 			this.totalAttempts++;
+			this.lastAnswerCorrect = isCorrect;
 			if (isCorrect) {
 				this.correctCount++;
 				this.markWordKnownAPI(word, 'read');
+				this.scheduleModeNext(350);
 			} else {
 				this.markWordUnknownAPI(word, 'read');
 			}
-			this.scheduleModeNext(350);
 		},
 		selectOption(opt) {
 			if (this.selectedOption) return;
@@ -768,13 +848,14 @@ export default {
 			const isCorrect = opt === this.currentModeWord.chinese;
 			playAnswerFeedback(isCorrect);
 			this.totalAttempts++;
+			this.lastAnswerCorrect = isCorrect;
 			if (isCorrect) {
 				this.correctCount++;
 				this.markWordKnownAPI(word, 'listen');
+				this.scheduleModeNext(350);
 			} else {
 				this.markWordUnknownAPI(word, 'listen');
 			}
-			this.scheduleModeNext(350);
 		},
 		checkSpelling() {
 			if (this.showResult) return;
@@ -787,9 +868,11 @@ export default {
 			this.writeResult = input === correct ? 'correct' : 'wrong';
 			playAnswerFeedback(input === correct);
 			this.totalAttempts++;
+			this.lastAnswerCorrect = input === correct;
 			if (input === correct) {
 				this.correctCount++;
 				this.markWordKnownAPI(this.currentModeWord.word, 'write');
+				this.scheduleModeNext(400);
 			} else {
 				this.markWordUnknownAPI(this.currentModeWord.word, 'write');
 			}
@@ -876,6 +959,60 @@ export default {
 			this.evaluationMessage = '';
 		},
 		markTodayStudied(word) { if (!this.todayStudiedWords.includes(word)) { this.todayStudiedWords.push(word); this.todayLearned = this.todayStudiedWords.length; } },
+		dailyTaskTarget() {
+			return Math.max(Number(this.dailyNewWords || 20), 1);
+		},
+		checkDailyTaskCompletion() {
+			if (this.entryType !== 'daily' || this.dailyTaskCelebrated) return;
+			const target = this.dailyTaskTarget();
+			const bankDone = this.wordBankTotal > 0 && this.masteredCount >= this.wordBankTotal;
+			if (this.todayMastered < target && !bankDone) return;
+			this.dailyTaskCelebrated = true;
+			this.dailyTaskCelebration = true;
+			this.buildCelebrationSparks();
+			this.playDailyFanfare();
+		},
+		buildCelebrationSparks() {
+			const colors = ['#ffd93d', '#ff6b6b', '#4ecdc4', '#ffe66d', '#ff9f43', '#6c5ce7', '#00cec9', '#fd79a8'];
+			const sparks = [];
+			for (let b = 0; b < 6; b++) {
+				const fx = 10 + (b * 17 + 7) % 80;
+				const fy = 15 + (b * 13 + 8) % 60;
+				const color = colors[(b * 3) % colors.length];
+				for (let i = 0; i < 12; i++) {
+					const angle = (i / 12) * Math.PI * 2;
+					const dist = 100 + (i % 4) * 45;
+					sparks.push({ left: fx + '%', top: fy + '%', dx: Math.round(Math.cos(angle) * dist) + 'rpx', dy: Math.round(Math.sin(angle) * dist) + 'rpx', color: color, delay: ((b * 0.35) + i * 0.02).toFixed(2) + 's', dur: (0.9 + (i % 3) * 0.18).toFixed(2) + 's' });
+				}
+			}
+			this.celebrationSparks = sparks;
+		},
+		sparkStyle(spark) {
+			return 'left:' + spark.left + ';top:' + spark.top + ';--dx:' + spark.dx + ';--dy:' + spark.dy + ';background:' + spark.color + ';box-shadow:0 0 14rpx 5rpx ' + spark.color + ';animation-delay:' + spark.delay + ';animation-duration:' + spark.dur;
+		},
+		playDailyFanfare() {
+			this.clearDailyFanfare();
+			try {
+				const audio = uni.createInnerAudioContext();
+				audio.autoplay = false;
+				audio.volume = 1;
+				audio.src = '/static/audio/fanfare-unlock.mp3';
+				audio.onCanplay(() => audio.play());
+				audio.onEnded(() => this.clearDailyFanfare());
+				audio.onError(() => this.clearDailyFanfare());
+				this.dailyFanfareAudio = audio;
+			} catch (e) {}
+		},
+		clearDailyFanfare() {
+			const audio = this.dailyFanfareAudio;
+			this.dailyFanfareAudio = null;
+			if (audio) { try { audio.stop(); audio.destroy(); } catch (e) {} }
+		},
+		closeDailyTaskCelebration() {
+			this.dailyTaskCelebration = false;
+			this.celebrationSparks = [];
+			this.clearDailyFanfare();
+		},
 		async markWordKnownAPI(word, mode) {
 			try {
 				const result = await markWordAsKnown(word, mode);
@@ -891,7 +1028,7 @@ export default {
 					this.todayMastered = this.todayMasteredWords.length;
 					if (!previous.mastered) { this.categoryCompleted++; this.masteredCount++; }
 				}
-				this.markTodayStudied(word); this.loadWrongCount();
+				this.markTodayStudied(word); this.checkDailyTaskCompletion(); this.loadWrongCount();
 			} catch (e) { console.error('记录模块完成失败:', e); }
 		},
 		async markWordUnknownAPI(word, mode) {
@@ -1053,8 +1190,8 @@ export default {
 	margin-bottom: 10rpx;
 }
 .study-plan { display: flex; align-items: center; }
-.completed-next-action { position: absolute; top: 18rpx; right: 18rpx; z-index: 3; display: flex; margin: 0; }
-.completed-next-action .action-btn.next { padding: 12rpx 22rpx; border-radius: 28rpx; font-size: 23rpx; line-height: 1.2; box-shadow: 0 5rpx 14rpx rgba(31,58,95,.2); }
+.completed-next-action { display: flex; justify-content: center; margin-top: 26rpx; }
+.completed-next-action .action-btn.next, .evaluation-actions .action-btn.next, .write-actions .action-btn.next { min-width: 320rpx; height: 84rpx; line-height: 84rpx; padding: 0 40rpx; font-size: 30rpx; font-weight: 800; border-radius: 42rpx; background: #1F3A5F; color: #FFFFFF; text-align: center; box-shadow: 0 8rpx 20rpx rgba(31,58,95,.22); }
 .plan-text { display: block; font-size: 28rpx; color: #333333; }
 .plan-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #8A8A8A; }
 .plan-number {
@@ -1442,6 +1579,32 @@ export default {
 }
 
 .english-option-content{display:flex;align-items:center;justify-content:space-between;width:100%;gap:18rpx}.option-phonetic{flex-shrink:0;color:#8a97a3;font-size:22rpx}
+
+
+.mode-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:100;display:flex;align-items:center;justify-content:center}
+.mode-mask{position:absolute;left:0;top:0;right:0;bottom:0;background:rgba(15,25,45,.55)}
+.mode-panel{position:relative;display:flex;flex-direction:column;width:92%;max-height:calc(86vh - 40px);border-radius:30rpx;background:#f7f5f0;overflow:hidden;box-shadow:0 20rpx 70rpx rgba(0,0,0,.35);animation:modePop .32s cubic-bezier(.2,1.4,.4,1) both}
+.mode-head{flex-shrink:0;display:flex;align-items:center;padding:26rpx 28rpx;background:#fff;border-bottom:1rpx solid #eef0f2}
+.mode-head-title{font-size:32rpx;font-weight:800;color:#1f3a5f}
+.mode-head-progress{flex:1;margin-left:18rpx;font-size:22rpx;color:#7d8a96}
+.mode-head-close{padding:6rpx 12rpx;font-size:32rpx;color:#c0392b}
+.mode-scroll{flex:1;min-height:0;max-height:calc(86vh - 40px - 224rpx);box-sizing:border-box;padding:24rpx 22rpx 40rpx}
+.mode-footer{flex-shrink:0;padding:20rpx 28rpx;background:#fff;border-top:1rpx solid #eef0f2}
+.mode-footer .action-btn.next{width:100%;height:84rpx;line-height:84rpx;padding:0;font-size:30rpx;font-weight:800;border-radius:42rpx;background:#1F3A5F;color:#FFFFFF;text-align:center;box-shadow:0 8rpx 20rpx rgba(31,58,95,.22)}
+.mode-modal .section{margin:0 0 24rpx}
+@keyframes modePop{from{transform:scale(.86);opacity:0}to{transform:scale(1);opacity:1}}
+
+.level-tabs{display:flex;margin-top:20rpx}
+.level-tab{flex:1;margin:0 7rpx;padding:18rpx 12rpx;border-radius:16rpx;background:#fff;border:2rpx solid #e6ebee;text-align:center}
+.level-tab:first-child{margin-left:0}
+.level-tab:last-child{margin-right:0}
+.level-tab.active{border-color:#0d9488;background:#eefaf7}
+.level-name{display:block;font-size:25rpx;font-weight:800;color:#344c61}
+.level-tab.active .level-name{color:#0d9488}
+.level-progress{display:block;margin-top:6rpx;font-size:20rpx;color:#7d8a96}
+.level-bar{height:8rpx;margin-top:10rpx;border-radius:6rpx;background:#eef1f3;overflow:hidden}
+.level-fill{height:100%;border-radius:6rpx;background:linear-gradient(90deg,#0d9488,#6c5ce7)}
+.dt-celebrate-mask{position:fixed;left:0;top:0;right:0;bottom:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(15,25,45,.6);animation:dtMaskFade .35s ease both}.dt-fireworks{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none}.dt-spark{position:absolute;width:10rpx;height:10rpx;border-radius:50%;opacity:0;animation-name:dtSparkBurst;animation-timing-function:ease-out;animation-fill-mode:forwards}.dt-celebrate-card{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;width:580rpx;padding:54rpx 34rpx 42rpx;border-radius:38rpx;background:linear-gradient(165deg,#fffdf4,#fff);box-shadow:0 20rpx 70rpx rgba(0,0,0,.4),0 0 0 6rpx rgba(255,214,102,.6);animation:dtCardPop .6s cubic-bezier(.2,1.7,.35,1) both}.dt-celebrate-ring{position:absolute;top:50%;left:50%;width:340rpx;height:340rpx;margin:-170rpx 0 0 -170rpx;border:4rpx dashed rgba(255,193,7,.8);border-radius:50%;animation:dtRingSpin 6s linear infinite}.dt-celebrate-ring:after{content:"";position:absolute;top:18rpx;right:18rpx;bottom:18rpx;left:18rpx;border:2rpx solid rgba(255,193,7,.45);border-radius:50%;animation:dtRingSpin 9s linear infinite reverse}.dt-celebrate-icon{position:relative;z-index:1;font-size:100rpx;line-height:1;animation:dtIconBounce 1s ease-in-out infinite}.dt-celebrate-title{position:relative;z-index:1;margin-top:24rpx;font-size:46rpx;font-weight:900;color:#1f3a5f}.dt-celebrate-sub{position:relative;z-index:1;margin-top:10rpx;font-size:24rpx;color:#7d8994}.dt-celebrate-btn{position:relative;z-index:1;margin-top:30rpx;width:300rpx;height:80rpx;line-height:80rpx;border-radius:40rpx;background:linear-gradient(135deg,#ffd54a,#ff9f43);color:#5b3a00;font-size:30rpx;font-weight:800;text-align:center;box-shadow:0 10rpx 22rpx rgba(255,159,67,.4)}@keyframes dtMaskFade{from{opacity:0}to{opacity:1}}@keyframes dtCardPop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}@keyframes dtRingSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes dtIconBounce{0%,100%{transform:translateY(0) scale(1)}30%{transform:translateY(-28rpx) scale(1.12)}55%{transform:translateY(0) scale(.96)}75%{transform:translateY(-12rpx) scale(1.05)}}@keyframes dtSparkBurst{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.15);opacity:0}}
 </style>
 
 

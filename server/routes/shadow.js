@@ -1,6 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
+async function enrichPhonetics(sentences) {
+	if (!Array.isArray(sentences) || !sentences.length) return sentences;
+	const tokens = new Set();
+	sentences.forEach(s => String(s.text || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).forEach(w => { if (w) tokens.add(w); }));
+	const list = [...tokens];
+	let map = {};
+	if (list.length) {
+		try {
+			const rows = await db.prepare(`SELECT word, phonetic_us FROM words WHERE word IN (${list.map(() => '?').join(',')})`).all(...list);
+			map = Object.fromEntries(rows.map(r => [r.word, String(r.phonetic_us || '').replace(/^\/|\/$/g, '').trim()]));
+		} catch (err) { map = {}; }
+	}
+	sentences.forEach(s => {
+		const raw = String(s.text || '').replace(/[^a-zA-Z' ]/g, ' ').split(/\s+/).filter(Boolean);
+		s.phonetic = raw.map(w => map[w.toLowerCase()] || w).join(' ');
+	});
+	return sentences;
+}
+
 
 // 获取跟读句子列表（支持等级筛选）
 router.get('/list', async (req, res) => {
@@ -18,7 +37,7 @@ router.get('/list', async (req, res) => {
 		params.push(Number(count));
 
 		const sentences = await db.prepare(sql).all(...params);
-		res.json({ code: 0, data: sentences });
+		res.json({ code: 0, data: await enrichPhonetics(sentences) });
 	} catch (err) {
 		console.error('获取跟读句子失败:', err);
 		res.json({ code: -1, message: '获取失败' });
@@ -49,7 +68,7 @@ router.get('/random', async (req, res) => {
 		params.push(safeCount);
 
 		const sentences = await db.prepare(sql).all(...params);
-		res.json({ code: 0, data: sentences });
+		res.json({ code: 0, data: await enrichPhonetics(sentences) });
 	} catch (err) {
 		console.error('随机获取句子失败:', err);
 		res.json({ code: -1, message: '获取失败' });
