@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
+const ach = require('../utils/achievements');
 function chinaDate(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -104,6 +105,8 @@ router.post('/status/known', async (req, res) => {
     }
     await db.prepare('UPDATE word_wrong_records SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND word = ? AND mode = ?').run(userId, word, mode);
     await updateLearningStats(userId, true);
+    await ach.maybeUnlockWrongTerminator(userId);
+    await ach.maybeUnlockMorningScholar(userId);
     res.json({ code: 0, data: { mastered, completedModes: Object.values(completed).filter(Boolean).length }, message: mastered ? '四项学习已完成' : '本模块已完成' });
   } catch (error) {
     console.error('更新单词模块状态失败:', error);
@@ -142,6 +145,7 @@ router.post('/status/unknown', async (req, res) => {
       ON DUPLICATE KEY UPDATE error_count = error_count + 1, active = 1, last_error_date = VALUES(last_error_date), resolved_at = NULL, updated_at = CURRENT_TIMESTAMP
     `).run(userId, word, mode, today, today);
     await updateLearningStats(userId, false);
+    await ach.maybeUnlockMorningScholar(userId);
     res.json({ code: 0, message: '已加入错题本' });
   } catch (error) {
     console.error('更新单词模块状态失败:', error);

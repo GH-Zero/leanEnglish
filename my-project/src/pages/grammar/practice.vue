@@ -129,6 +129,13 @@ export default {
     async check() {
       if (this.selectedIndex < 0) return;
       this.answered = true;
+      if (this.entryType === 'daily') {
+        const now = new Date();
+        const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const saved = uni.getStorageSync('grammarTodayAnswered') || {};
+        const previous = saved.date === today ? Number(saved.count || 0) : 0;
+        uni.setStorageSync('grammarTodayAnswered', { date: today, count: previous + 1, updatedAt: Date.now() });
+      }
       this.isCorrect = this.currentQuestion.options[this.selectedIndex] === this.currentQuestion.answer;
       playAnswerFeedback(this.isCorrect);
       if (this.isCorrect) {

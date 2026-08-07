@@ -127,7 +127,7 @@ export default {
           const board = result?.[1]
           const level = result?.[2]
           if (!viewport || !board || !level) return
-          const target = Math.max(0, level.top - board.top - viewport.height * 0.18)
+          const target = Math.max(0, level.top - board.top + level.height / 2 - viewport.height / 2)
           this.scrollTop = -1
           this.$nextTick(() => { this.scrollTop = target })
         })
@@ -156,7 +156,7 @@ export default {
     moduleInfo(index) {
       const current = this.levels[index]
       if (!current || (index > 0 && this.levels[index - 1].world === current.world)) return null
-      return { name: current.world + ' · ' + current.stage, desc: '按场景依次学习，完成后进入下一阶段', icon: ({ A1: '🌱', A2: '🌿', B1: '🌳', B2: '🗣️', C1: '🏆' })[current.world] }
+      return { name: current.world + ' · ' + current.stage, desc: '按场景依次学习，完成后进入下一阶段', icon: ({ A1: '🌱', A2: '🌿', B1: '🌳', B2: '🗣️', C1: '🏆', 隐藏: '👑' })[current.world] }
     },
     moduleProgress(index) {
       const current = this.levels[index]

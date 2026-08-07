@@ -32,6 +32,5 @@ export async function checkDailyReminder() {
   const time = `${dateKey} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
   saveNotificationMessage({ ...item, time, type: 'daily' });
   uni.setStorageSync(DAILY_KEY, dateKey);
-  uni.showModal({ title: item.title, content: item.content, showCancel: false, confirmText: '去学习', success: result => { if (result.confirm) uni.switchTab({ url: '/pages/home/index' }); } });
   return true;
 }

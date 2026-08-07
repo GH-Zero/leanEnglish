@@ -284,6 +284,9 @@ async function ensureWordSchema() {
   if (!indexNames.has('idx_words_frequency_rank')) {
     await pool.query('ALTER TABLE words ADD INDEX idx_words_frequency_rank (frequency_rank)');
   }
+  if (!indexNames.has('idx_words_level_freq_sort')) {
+    await pool.query('ALTER TABLE words ADD INDEX idx_words_level_freq_sort (level, frequency_rank, sort_order, id)');
+  }
 }
 async function ensureAdventureSchema() {
   await pool.query(`CREATE TABLE IF NOT EXISTS adventure_levels (id INT PRIMARY KEY AUTO_INCREMENT,chapter_no INT NOT NULL DEFAULT 1,level_no INT UNIQUE NOT NULL,title VARCHAR(100) NOT NULL,subtitle VARCHAR(200),icon VARCHAR(20) DEFAULT '🗺️',difficulty INT DEFAULT 1,pass_score INT DEFAULT 80,is_boss TINYINT(1) DEFAULT 0,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
@@ -293,6 +296,11 @@ async function ensureAdventureSchema() {
     [1,'基础问候','认识常用问候与简单句','👋',1,80,0],[2,'自我介绍','姓名、身份与主系表','🙂',1,80,0],[3,'家庭成员','家庭词汇与物主表达','🏠',1,80,0],[4,'阶段检测','复习前三关核心内容','🧭',1,80,0],[5,'每日活动','高频动作与一般现在时','☀️',2,80,0],[6,'时间表达','时间、日期与常用介词','🕐',2,80,0],[7,'食物饮料','餐饮词汇与数量表达','🍎',2,80,0],[8,'餐厅交流','点餐表达与听力辨义','🍽️',2,80,0],[9,'综合练习','混合检验本章知识','📝',2,80,0],[10,'启程挑战','第一章综合 Boss 关','🏆',3,85,1]
   ];
   for(const item of levels)await pool.query(`INSERT INTO adventure_levels(chapter_no,level_no,title,subtitle,icon,difficulty,pass_score,is_boss) VALUES (1,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE title=VALUES(title),subtitle=VALUES(subtitle),icon=VALUES(icon),difficulty=VALUES(difficulty),pass_score=VALUES(pass_score),is_boss=VALUES(is_boss)`,item);
+}
+async function ensureAchievementSchema() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS user_achievements (user_id INT NOT NULL,achievement_id VARCHAR(50) NOT NULL,unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY (user_id,achievement_id),INDEX idx_ua_user (user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS user_rewards (user_id INT NOT NULL,reward_type VARCHAR(30) NOT NULL,count INT NOT NULL DEFAULT 0,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (user_id,reward_type)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS user_achievement_progress (user_id INT NOT NULL,stat_key VARCHAR(50) NOT NULL,value INT NOT NULL DEFAULT 0,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (user_id,stat_key)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
 }
 async function ensureShadowSentenceSchema() {
   const [columns] = await pool.query('SHOW COLUMNS FROM shadow_sentences');
@@ -445,6 +453,7 @@ async function initDatabase() {
   await ensureWordSchema();
   await ensureWordStatusSchema();
   await ensureAdventureSchema();
+  await ensureAchievementSchema();
   await ensureShadowSentenceSchema();
   await ensureShadowSentenceBank();
   await ensureGrammarQuestionProgressSchema();

@@ -189,7 +189,7 @@ router.get('/daily', async (req, res) => {
         SELECT w.* FROM words w
         WHERE w.level = ? ${categorySql}
           AND NOT EXISTS (SELECT 1 FROM word_status ws WHERE ws.user_id = ? AND ws.word = w.word)
-        ORDER BY w.frequency_rank IS NULL, w.frequency_rank ASC, w.sort_order ASC, w.id ASC
+        ORDER BY w.frequency_rank ASC, w.sort_order ASC, w.id ASC
         LIMIT ?
       `).all(level, ...categoryParams, userId, newWordLimit);
     }

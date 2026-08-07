@@ -11,8 +11,19 @@
 			<view class="stat-item"><text class="stat-number">{{ totalLearned }}</text><text class="stat-label">已学单词</text></view>
 			<view class="stat-item"><text class="stat-number">{{ accuracy }}%</text><text class="stat-label">正确率</text></view>
 			<view class="stat-item wrong-entry" @click="openWrongBook"><text class="stat-number wrong-number">{{ wrongCount }}</text><text class="stat-label">错题</text></view>
-		</view>		<animated-loading v-if="loading && !wordList.length" text="正在加载单词数据"></animated-loading>
+		</view>
+		<animated-loading v-if="loading && !wordList.length" text="正在加载单词数据"></animated-loading>
 		<template v-else>
+		<!-- 下一个成就提示 -->
+		<view v-if="nextAchievement" class="word-goal" @click="goAchievements">
+			<view class="word-goal-icon">{{ nextAchievement.icon }}</view>
+			<view class="word-goal-main">
+				<text class="word-goal-kicker">下一个成就</text>
+				<text class="word-goal-name">离【{{ nextAchievement.name }}】{{ achievementRemainingText(nextAchievement) }}</text>
+				<view class="word-goal-track"><view class="word-goal-fill" :style="{ width: nextAchievementProgress + '%' }"></view></view>
+			</view>
+			<view class="word-goal-action"><text>查看成就</text><text>›</text></view>
+		</view>
 		<!-- 单词词库：词库进度与难度等级 -->
 		<view class="section" v-if="entryType === 'course'">
 			<text class="section-title">词库进度</text>
@@ -102,10 +113,19 @@
 			<view class="mode-panel">
 				<view class="mode-head">
 					<text class="mode-head-title">{{ modeTitle }}</text>
-					<text class="mode-head-progress">{{ entryType === 'daily' ? '第 ' + (modeIndex + 1) + ' / ' + modeWords.length + ' 词 · ' : '' }}本词 {{ currentModeProgress }}/4 模块完成</text>
+					<text class="mode-head-progress" v-if="!roundFinished">{{ entryType === 'daily' ? '第 ' + (modeIndex + 1) + ' / ' + modeWords.length + ' 词 · ' : '' }}本词 {{ currentModeProgress }}/4 模块完成</text>
+					<text class="mode-head-progress" v-else>本轮练习已完成</text>
 					<text class="mode-head-close" @click="exitMode">✕</text>
 				</view>
 				<scroll-view class="mode-scroll" scroll-y>
+				<!-- 本轮完成 -->
+				<view v-if="roundFinished" class="round-done">
+					<text class="round-done-icon">🎉</text>
+					<text class="round-done-title">本轮练习完成</text>
+					<text class="round-done-desc">共练习 {{ roundTotal }} 题 · 答对 {{ roundCorrect }} 题</text>
+					<view class="round-done-btn" @click="exitMode">完成</view>
+				</view>
+				<template v-else>
 		<!-- 听音辨义模式 -->
 		<view class="section" v-if="learningMode === 'listen'">
 			<view class="listen-card" v-if="currentModeWord">
@@ -190,8 +210,9 @@
 				</view>
 			</view>
 		</view>
+				</template>
 				</scroll-view>
-				<view class="mode-footer" v-if="modeNextVisible">
+				<view class="mode-footer" v-if="modeNextVisible && !roundFinished">
 					<view class="action-btn next mode-next-btn" @click="nextModeWord">下一题</view>
 				</view>
 			</view>
@@ -214,8 +235,9 @@
 </template>
 
 <script>
-import { BASE_URL, request as apiRequest, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats, getSettings } from '@/utils/api.js';
+import { BASE_URL, request as apiRequest, getWordStatus, markWordAsKnown, markWordAsUnknown, getLearningStats, getSettings, getAchievements } from '@/utils/api.js';
 import { isFirstLoad } from '@/utils/first-load.js';
+import { achievementRemainingText } from '@/utils/achievement-text.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
@@ -247,6 +269,7 @@ export default {
 			entryType: 'course',
 			wordList: [],
 			wordStatus: {},
+			nextAchievement: null,
 			// 学习模式
 			learningMode: '',
 			isWrongBookMode: false,
@@ -284,11 +307,15 @@ export default {
 			levelCounts: {},
 			loading: firstLoad,
 			firstLoad,
+			loadTimer: null,
 			lastAnswerCorrect: false,
 			dailyTaskCelebrated: false,
 			dailyTaskCelebration: false,
 			dailyFanfareAudio: null,
-			celebrationSparks: []
+			celebrationSparks: [],
+			roundFinished: false,
+			roundCorrect: 0,
+			roundTotal: 0
 		}
 	},
 	computed: {
@@ -308,6 +335,9 @@ export default {
 		currentModeProgress() {
 			const status = this.currentModeWord ? this.wordStatus[this.currentModeWord.word] : null;
 			return status?.completed_modes || 0;
+		},
+		nextAchievementProgress() {
+			return this.nextAchievement ? Math.max(0, Math.min(100, Number(this.nextAchievement.progress || 0))) : 0;
 		},
 		currentModeCompleted() {
 			const status = this.currentModeWord ? this.wordStatus[this.currentModeWord.word] : null;
@@ -342,9 +372,12 @@ export default {
 		this.initRecorder();
 	},
 	async onShow() {
+		this.clearLoadTimer();
+		if (this.firstLoad) this.loadTimer = setTimeout(() => { this.loading = false; }, 3000);
 		await this.loadLearningSettings();
 		await Promise.all([this.loadWordCounts(), this.loadWords(), this.loadStats(), this.loadWrongCount()]);
 		this.syncTodayMastered();
+		this.loadNextAchievement();
 		if (this.pendingWrongMode) {
 			const mode = this.pendingWrongMode;
 			this.pendingWrongMode = '';
@@ -355,8 +388,10 @@ export default {
 		this.clearModeTimers();
 		clearTtsQueue();
 		this.clearDailyFanfare();
+		this.clearLoadTimer();
 	},
 	methods: {
+		achievementRemainingText,
 		todayDateKey(value = new Date()) {
 			if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.slice(0, 10))) return value.slice(0, 10);
 			const date = value instanceof Date ? value : new Date(value);
@@ -389,6 +424,24 @@ export default {
 		clearModeAdvanceTimer() {
 			if (this.modeAdvanceTimer) clearTimeout(this.modeAdvanceTimer);
 			this.modeAdvanceTimer = null;
+		},
+		async loadNextAchievement() {
+			const cached = uni.getStorageSync('homeNextAchievement');
+			if (cached && cached.name) this.nextAchievement = cached;
+			try {
+				const result = await getAchievements();
+				const badges = [...(result?.learning || []), ...(result?.streak || []), ...(result?.special || []), ...(result?.hidden || [])];
+				const locked = badges.filter(item => !item.unlocked && !item.hidden);
+				const next = locked.filter(item => Number(item.progress || 0) > 0).sort((a, b) => Number(b.progress || 0) - Number(a.progress || 0))[0] || locked[0] || null;
+				this.nextAchievement = next;
+				if (next) uni.setStorageSync('homeNextAchievement', next);
+			} catch (error) {
+				console.error('加载成就提示失败:', error);
+			}
+		},
+		goAchievements() { uni.navigateTo({ url: '/pages/mine/achievement' }); },
+		clearLoadTimer() {
+			if (this.loadTimer) { clearTimeout(this.loadTimer); this.loadTimer = null; }
 		},
 		clearModeTimers() {
 			this.clearAutoNextTimer();
@@ -489,7 +542,9 @@ export default {
 								playAnswerFeedback(this.speakScore >= PRONUNCIATION_PASS_SCORE);
 								this.evaluationMessage = result.feedback || (this.speakScore >= PRONUNCIATION_PASS_SCORE ? '发音达标，即将进入下一题。' : '还未达到 '+PRONUNCIATION_PASS_SCORE+' 分，请重新跟读。');
 								this.totalAttempts++;
+								this.roundTotal++;
 								if (this.speakScore >= PRONUNCIATION_PASS_SCORE) {
+									this.roundCorrect++;
 									this.correctCount++;
 									this.markWordKnownAPI(this.currentModeWord.word, 'speak');
 									this.scheduleSpeakAutoNext();
@@ -557,6 +612,7 @@ export default {
 				console.error('加载每日分类单词失败:', error);
 				uni.showToast({ title: '加载每日单词失败', icon: 'none' });
 			} finally {
+				this.clearLoadTimer();
 				this.loading = false;
 			}
 		},		async loadStats() {
@@ -637,6 +693,9 @@ export default {
 				}
 				this.learningMode = mode;
 				this.isWrongBookMode = true;
+				this.roundFinished = false;
+				this.roundCorrect = 0;
+				this.roundTotal = 0;
 				this.modeWords = pending;
 				this.modeIndex = 0;
 				this.lastAnswerCorrect = false;
@@ -724,6 +783,9 @@ export default {
 			}
 			this.learningMode = mode;
 			this.isWrongBookMode = false;
+			this.roundFinished = false;
+			this.roundCorrect = 0;
+			this.roundTotal = 0;
 			this.modeWords = pending.slice(0, 20);
 			this.modeIndex = 0;
 			this.lastAnswerCorrect = false;
@@ -751,6 +813,7 @@ export default {
 			clearTtsQueue();
 			this.learningMode = '';
 			this.isWrongBookMode = false;
+			this.roundFinished = false;
 			this.modeWords = [];
 			this.modeIndex = 0;
 			this.showBack = false;
@@ -790,8 +853,8 @@ export default {
 
 			if (this.modeIndex >= this.modeWords.length) {
 				this.nextSwitching = false;
-				uni.showToast({ title: '本轮练习完成！', icon: 'success' });
-				setTimeout(() => this.exitMode(), 1500);
+				clearTtsQueue();
+				this.roundFinished = true;
 				return;
 			}
 
@@ -832,8 +895,10 @@ export default {
 			const isCorrect = option === word;
 			playAnswerFeedback(isCorrect);
 			this.totalAttempts++;
+			this.roundTotal++;
 			this.lastAnswerCorrect = isCorrect;
 			if (isCorrect) {
+				this.roundCorrect++;
 				this.correctCount++;
 				this.markWordKnownAPI(word, 'read');
 				this.scheduleModeNext(350);
@@ -848,8 +913,10 @@ export default {
 			const isCorrect = opt === this.currentModeWord.chinese;
 			playAnswerFeedback(isCorrect);
 			this.totalAttempts++;
+			this.roundTotal++;
 			this.lastAnswerCorrect = isCorrect;
 			if (isCorrect) {
+				this.roundCorrect++;
 				this.correctCount++;
 				this.markWordKnownAPI(word, 'listen');
 				this.scheduleModeNext(350);
@@ -868,8 +935,10 @@ export default {
 			this.writeResult = input === correct ? 'correct' : 'wrong';
 			playAnswerFeedback(input === correct);
 			this.totalAttempts++;
+			this.roundTotal++;
 			this.lastAnswerCorrect = input === correct;
 			if (input === correct) {
+				this.roundCorrect++;
 				this.correctCount++;
 				this.markWordKnownAPI(this.currentModeWord.word, 'write');
 				this.scheduleModeNext(400);
@@ -1605,6 +1674,8 @@ export default {
 .level-bar{height:8rpx;margin-top:10rpx;border-radius:6rpx;background:#eef1f3;overflow:hidden}
 .level-fill{height:100%;border-radius:6rpx;background:linear-gradient(90deg,#0d9488,#6c5ce7)}
 .dt-celebrate-mask{position:fixed;left:0;top:0;right:0;bottom:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(15,25,45,.6);animation:dtMaskFade .35s ease both}.dt-fireworks{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none}.dt-spark{position:absolute;width:10rpx;height:10rpx;border-radius:50%;opacity:0;animation-name:dtSparkBurst;animation-timing-function:ease-out;animation-fill-mode:forwards}.dt-celebrate-card{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;width:580rpx;padding:54rpx 34rpx 42rpx;border-radius:38rpx;background:linear-gradient(165deg,#fffdf4,#fff);box-shadow:0 20rpx 70rpx rgba(0,0,0,.4),0 0 0 6rpx rgba(255,214,102,.6);animation:dtCardPop .6s cubic-bezier(.2,1.7,.35,1) both}.dt-celebrate-ring{position:absolute;top:50%;left:50%;width:340rpx;height:340rpx;margin:-170rpx 0 0 -170rpx;border:4rpx dashed rgba(255,193,7,.8);border-radius:50%;animation:dtRingSpin 6s linear infinite}.dt-celebrate-ring:after{content:"";position:absolute;top:18rpx;right:18rpx;bottom:18rpx;left:18rpx;border:2rpx solid rgba(255,193,7,.45);border-radius:50%;animation:dtRingSpin 9s linear infinite reverse}.dt-celebrate-icon{position:relative;z-index:1;font-size:100rpx;line-height:1;animation:dtIconBounce 1s ease-in-out infinite}.dt-celebrate-title{position:relative;z-index:1;margin-top:24rpx;font-size:46rpx;font-weight:900;color:#1f3a5f}.dt-celebrate-sub{position:relative;z-index:1;margin-top:10rpx;font-size:24rpx;color:#7d8994}.dt-celebrate-btn{position:relative;z-index:1;margin-top:30rpx;width:300rpx;height:80rpx;line-height:80rpx;border-radius:40rpx;background:linear-gradient(135deg,#ffd54a,#ff9f43);color:#5b3a00;font-size:30rpx;font-weight:800;text-align:center;box-shadow:0 10rpx 22rpx rgba(255,159,67,.4)}@keyframes dtMaskFade{from{opacity:0}to{opacity:1}}@keyframes dtCardPop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}@keyframes dtRingSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}@keyframes dtIconBounce{0%,100%{transform:translateY(0) scale(1)}30%{transform:translateY(-28rpx) scale(1.12)}55%{transform:translateY(0) scale(.96)}75%{transform:translateY(-12rpx) scale(1.05)}}@keyframes dtSparkBurst{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.15);opacity:0}}
+.round-done{display:flex;flex-direction:column;align-items:center;padding:80rpx 30rpx 46rpx;text-align:center}.round-done-icon{font-size:90rpx;line-height:1;animation:dtIconBounce 1s ease-in-out infinite}.round-done-title{margin-top:22rpx;font-size:40rpx;font-weight:900;color:#1f3a5f}.round-done-desc{margin-top:12rpx;font-size:24rpx;color:#7d8994}.round-done-btn{margin-top:44rpx;width:320rpx;height:84rpx;line-height:84rpx;border-radius:42rpx;background:linear-gradient(135deg,#1F3A5F,#2f5f96);color:#fff;font-size:30rpx;font-weight:800;text-align:center;box-shadow:0 10rpx 22rpx rgba(31,58,95,.28)}
+.word-goal{display:flex;align-items:center;gap:18rpx;margin:20rpx 0 4rpx;padding:22rpx 24rpx;border-radius:24rpx;background:linear-gradient(135deg,#1F3A5F,#246d78);box-shadow:0 10rpx 26rpx rgba(31,58,95,.22);color:#fff}.word-goal-icon{display:flex;align-items:center;justify-content:center;width:76rpx;height:76rpx;border-radius:22rpx;background:linear-gradient(145deg,#ffe9a8,#ffd76a);font-size:38rpx;box-shadow:0 0 0 8rpx rgba(255,215,106,.14)}.word-goal-main{flex:1;min-width:0}.word-goal-kicker{display:block;font-size:19rpx;color:rgba(255,255,255,.62);letter-spacing:1rpx}.word-goal-name{display:block;margin-top:5rpx;font-size:26rpx;font-weight:900;color:#ffe9a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.word-goal-track{height:8rpx;margin-top:12rpx;border-radius:8rpx;background:rgba(255,255,255,.16);overflow:hidden}.word-goal-fill{height:100%;border-radius:8rpx;background:linear-gradient(90deg,#f3c96b,#ffe8a0)}.word-goal-action{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:6rpx;color:rgba(255,255,255,.75);font-size:20rpx}.word-goal-action text:last-child{font-size:30rpx;line-height:1}
 </style>
 
 

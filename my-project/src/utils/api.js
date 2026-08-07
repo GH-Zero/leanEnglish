@@ -28,6 +28,7 @@ function rawRequest(url, method = 'GET', data = {}, token = '') {
 			url: BASE_URL + url,
 			method,
 			data,
+			timeout: 15000,
 			header: {
 				'Content-Type': 'application/json; charset=utf-8',
 				...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -280,6 +281,14 @@ export function getAchievements(userId = getCurrentUserId()) {
 	return request(`/achievement?userId=${userId}`);
 }
 
+export function getAchievementRewards(userId = getCurrentUserId()) {
+	return request(`/achievement/rewards?userId=${userId}`);
+}
+
+export function useAchievementReward(type, count = 1, userId = getCurrentUserId()) {
+	return request('/achievement/rewards/use', 'POST', { type, count, userId });
+}
+
 // ==================== 设置相关 ====================
 
 /**
@@ -340,6 +349,8 @@ export default {
 	clearDialogueHistory,
 	getStudyStatistics,
 	getAchievements,
+	getAchievementRewards,
+	useAchievementReward,
 	getSettings,
 	updateSettings,
 	resetLearningProgress,
