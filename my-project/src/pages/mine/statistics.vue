@@ -10,6 +10,10 @@
 		<view class="overview-card">
 			<view class="overview-item">
 				<text class="overview-number">{{ stats.totalDays }}</text>
+				<text class="overview-label">累计学习天数</text>
+			</view>
+			<view class="overview-item">
+				<text class="overview-number">{{ stats.currentStreak }}</text>
 				<text class="overview-label">连续学习天数</text>
 			</view>
 			<view class="overview-item">
@@ -98,6 +102,7 @@ export default {
 			studyDates: [],
 			stats: {
 				totalDays: 0,
+				currentStreak: 0,
 				totalWords: 0,
 				totalHours: '0',
 				wordsLearned: 0,
@@ -132,7 +137,8 @@ export default {
 				const statistics = await getStudyStatistics();
 
 				this.stats = {
-					totalDays: statistics.currentStreak || 0,
+					totalDays: statistics.totalDays || 0,
+					currentStreak: statistics.currentStreak || 0,
 					totalWords: statistics.totalWords || 0,
 					totalHours: statistics.totalHours || '0',
 					wordsLearned: statistics.wordsLearned || 0,
@@ -157,7 +163,8 @@ export default {
 				const streak = uni.getStorageSync('streakData') || {};
 
 				this.stats = {
-					totalDays: Number(streak.currentStreak ?? streak.current_streak ?? 0),
+					totalDays: Number(streak.totalStudyDays ?? streak.total_study_days ?? (streak.studyDates || streak.study_dates || []).length),
+					currentStreak: Number(streak.currentStreak ?? streak.current_streak ?? 0),
 					totalWords: stats.totalWordsLearned || 0,
 					totalHours: ((stats.totalStudyMinutes || 0) / 60).toFixed(1),
 					wordsLearned: stats.totalWordsLearned || 0,
@@ -206,8 +213,9 @@ export default {
 	position: sticky;
 	top: 12rpx;
 	z-index: 5;
-	display: flex;
-	justify-content: space-around;
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 28rpx 12rpx;
 	background-color: #1F3A5F;
 	border-radius: 20rpx;
 	padding: 40rpx;

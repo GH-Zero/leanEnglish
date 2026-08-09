@@ -43,6 +43,7 @@ const DEFAULT_DATA = {
 	streakData: {
 		currentStreak: 0,
 		maxStreak: 0,
+		totalStudyDays: 0,
 		lastStudyDate: null,
 		studyDates: []
 	},
@@ -236,6 +237,7 @@ export function updateStreak() {
 	if (!streak.studyDates) streak.studyDates = [];
 	if (!streak.studyDates.includes(today)) {
 		streak.studyDates.push(today);
+		streak.totalStudyDays = Number(streak.totalStudyDays ?? streak.studyDates.length - 1) + 1;
 		// 只保留最近30天的记录
 		if (streak.studyDates.length > 30) {
 			streak.studyDates = streak.studyDates.slice(-30);
