@@ -135,6 +135,9 @@ export default {
 		},
 		grammarTodayDone() {
 			return this.todayGrammarAnswered >= this.dailyGrammarQuestions;
+		},
+		todayTasksDone() {
+			return this.phoneticDone && this.todayWordDone && this.grammarTodayDone;
 		}
 	},
 	methods: {
@@ -241,7 +244,9 @@ export default {
 		startFromReminder() {
 			uni.setStorageSync(`homeReminderDone:${this.dateKey()}`, true);
 			this.showReminder = false;
-			uni.switchTab({ url: '/pages/learn/index' });
+			if (this.todayTasksDone) {
+				uni.switchTab({ url: '/pages/learn/index' });
+			}
 		},		loadLocalData() {
 			try {
 				const stats = uni.getStorageSync('learningStats') || {};
