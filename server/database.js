@@ -137,6 +137,7 @@ const schemaStatements = [
     user_id INT NOT NULL,
     phonetic_id VARCHAR(50) NOT NULL,
     best_score INT DEFAULT 0,
+    last_score INT DEFAULT 0,
     attempts INT DEFAULT 0,
     mastered TINYINT(1) DEFAULT 0,
     last_practice_date DATE,
@@ -359,6 +360,12 @@ async function ensureGrammarQuestionProgressSchema() {
     INDEX idx_grammar_question_cycle (user_id, grammar_id, correct)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 }
+async function ensurePhoneticProgressSchema() {
+  const [columns] = await pool.query('SHOW COLUMNS FROM phonetic_progress');
+  if (!columns.some(column => column.Field === 'last_score')) {
+    await pool.query('ALTER TABLE phonetic_progress ADD COLUMN last_score INT DEFAULT 0 AFTER best_score');
+  }
+}
 async function ensureGrammarProgressSchema() {
   const [columns] = await pool.query('SHOW COLUMNS FROM grammar_progress');
   const names = new Set(columns.map(column => column.Field));
@@ -458,6 +465,7 @@ async function initDatabase() {
   await ensureShadowSentenceBank();
   await ensureGrammarQuestionProgressSchema();
   await ensureGrammarProgressSchema();
+  await ensurePhoneticProgressSchema();
   await ensureGrammarQuestionBank();
   await ensureGrammarQuestionVolume();
 

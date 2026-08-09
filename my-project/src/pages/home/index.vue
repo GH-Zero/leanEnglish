@@ -12,7 +12,7 @@
 			<view class="section-heading"><view><text class="section-title">今日任务</text><text class="section-subtitle">按计划完成今天的学习内容</text></view><text class="plan-tag">每日计划</text></view>
 			<view class="task-panel">
 				<view class="task-row" @click="goToPage('/pages/phonetic/index?entry=daily')">
-					<view class="task-icon phonetic">🔊</view><view class="task-info"><text class="task-title">发音训练</text><text class="task-desc">继续练习未掌握的音标</text><view class="task-track"><view :style="{width: phoneticPercent + '%'}"></view></view></view><view class="task-status" :class="{done: phoneticDone}">{{ phoneticDone ? '已完成' : phoneticMastered + '/' + phoneticTotal }}</view><text class="row-arrow">›</text>
+					<view class="task-icon phonetic">🔊</view><view class="task-info"><text class="task-title">发音训练</text><text class="task-desc">今日完成全部音标评测，80分达标</text><view class="task-track"><view :style="{width: phoneticPercent + '%'}"></view></view></view><view class="task-status" :class="{done: phoneticDone}">{{ phoneticDone ? '已完成' : todayPhoneticPracticed + '/' + dailyPhonetics }}</view><text class="row-arrow">›</text>
 				</view>
 				<view class="task-row" @click="goToPage('/pages/word/index?entry=daily')">
 					<view class="task-icon">📚</view><view class="task-info"><text class="task-title">单词学习</text><text class="task-desc">今日目标 {{ dailyNewWords }} 词，完成四项练习</text><view class="task-track"><view :style="{width: todayWordPercent + '%'}"></view></view></view><view class="task-status" :class="{done: todayWordDone}">{{ todayWordDone ? '已完成' : todayWordMastered + '/' + dailyNewWords }}</view><text class="row-arrow">›</text>
@@ -77,8 +77,8 @@ export default {
 			dailyGrammarQuestions: 10,
 			dailyNewWords: 20,
 			todayWordMastered: 0,
-			phoneticTotal: 48,
-			phoneticMastered: 0,
+			dailyPhonetics: 48,
+			todayPhoneticPracticed: 0,
 			todayGrammarAnswered: 0,
 			showReminder: false,
 			reminderTitle: '该开始今天的学习了',
@@ -123,11 +123,11 @@ export default {
 			return this.todayWordMastered >= this.dailyNewWords;
 		},
 		phoneticPercent() {
-			if (!this.phoneticTotal) return 0;
-			return Math.max(0, Math.min(100, Math.round(this.phoneticMastered * 100 / this.phoneticTotal)));
+			if (!this.dailyPhonetics) return 0;
+			return Math.max(0, Math.min(100, Math.round(this.todayPhoneticPracticed * 100 / this.dailyPhonetics)));
 		},
 		phoneticDone() {
-			return this.phoneticMastered >= this.phoneticTotal;
+			return this.todayPhoneticPracticed >= this.dailyPhonetics;
 		},
 		grammarTodayPercent() {
 			if (!this.dailyGrammarQuestions) return 0;
@@ -288,7 +288,8 @@ export default {
 			try {
 				const progress = await getPhoneticProgress().catch(() => null);
 				const items = Object.values(progress || {});
-				this.phoneticMastered = items.filter(item => item && item.mastered).length;
+				const today = this.dateKey();
+				this.todayPhoneticPracticed = items.filter(item => String(item?.last_practice_date || '').slice(0, 10) === today && Number(item?.last_score || 0) >= 80).length;
 			} catch (error) {
 				console.error('加载发音进度失败:', error);
 			}

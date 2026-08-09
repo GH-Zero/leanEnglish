@@ -2,10 +2,10 @@
 	<view class="container">
 		<AchievementUnlockNotifier />
 		<view class="section progress-section">
-			<text class="section-title">学习进度</text>
+			<text class="section-title">{{ entryType === 'daily' ? '今日练习进度' : '总学习进度' }}</text>
 			<view class="progress-card">
 				<view class="progress-info">
-					<text class="progress-text">已掌握：{{ masteredCount }}/48</text>
+					<text class="progress-text">{{ entryType === 'daily' ? '今日达标' : '已掌握' }}：{{ displayProgressCount }}/48</text>
 					<text class="progress-percent">{{ progressPercent }}%</text>
 				</view>
 				<view class="progress-bar">
@@ -37,16 +37,16 @@
 			<text class="section-title">音标列表</text>
 			<scroll-view class="phonetic-list phonetic-scroll" scroll-y="true" :show-scrollbar="true" enhanced="true">
 				<animated-loading v-if="listLoading" text="正在加载音标"></animated-loading>
-				<view class="phonetic-item" :class="{ mastered: isPhoneticMastered(item) }" v-for="item in filteredPhonetics" :key="item.id || item.symbol" v-else-if="filteredPhonetics.length">
+				<view class="phonetic-item" :class="{ mastered: isPhoneticPassed(item) }" v-for="item in filteredPhonetics" :key="item.id || item.symbol" v-else-if="filteredPhonetics.length">
 					<view class="phonetic-symbol">{{ item.symbol }}</view>
 					<view class="phonetic-info">
 						<text class="phonetic-example">{{ item.example }}</text>
 						<text class="phonetic-chinese">{{ item.chinese }}</text>
 					</view>
 					<view class="phonetic-actions">
-						<view class="score-status" :class="{ passed: isPhoneticMastered(item) }">
+						<view class="score-status" :class="{ passed: isPhoneticPassed(item) }">
 							<text class="best-score">{{ phoneticScoreLabel(item) }}</text>
-							<text class="passed-label" v-if="isPhoneticMastered(item)">已通过</text>
+							<text class="passed-label" v-if="isPhoneticPassed(item)">{{ entryType === 'daily' ? '今日达标' : '已掌握' }}</text>
 						</view>
 						<text class="play-btn" @click="playSound(item.symbol, item.example, item.chinese)">🔊</text>
 						<text class="practice-btn" @click="startPractice(item)">跟读</text>
@@ -136,8 +136,15 @@ export default {
 		filteredPhonetics() {
 			return this.phonetics.filter(item => item.category === this.currentCategory);
 		},
+		todayPassedCount() {
+			const today = this.dateKey();
+			return Object.values(this.phoneticProgress || {}).filter(item => String(item?.last_practice_date || '').slice(0, 10) === today && Number(item?.last_score || 0) >= PRONUNCIATION_PASS_SCORE).length;
+		},
+		displayProgressCount() {
+			return this.entryType === 'daily' ? this.todayPassedCount : this.masteredCount;
+		},
 		progressPercent() {
-			return Math.round((this.masteredCount / 48) * 100);
+			return Math.round((this.displayProgressCount / 48) * 100);
 		}
 	},
 	async onLoad(options = {}) {
@@ -153,6 +160,10 @@ export default {
 		if (this.myAudioContext) { this.myAudioContext.stop(); this.myAudioContext.destroy(); this.myAudioContext = null; }
 	},
 	methods: {
+		dateKey(date = new Date()) {
+			const pad = value => String(value).padStart(2, '0');
+			return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+		},
 		async loadPhonetics() {
 			if (this.firstLoad) { this.listLoading = true; this.firstLoad = false }
 			this.listError = false;
@@ -186,8 +197,16 @@ export default {
 		isPhoneticMastered(item) {
 			return Boolean(this.phoneticProgressOf(item)?.mastered);
 		},
+		isPhoneticPassed(item) {
+			if (this.entryType !== 'daily') return this.isPhoneticMastered(item);
+			const progress = this.phoneticProgressOf(item);
+			return String(progress?.last_practice_date || '').slice(0, 10) === this.dateKey() && Number(progress?.last_score || 0) >= PRONUNCIATION_PASS_SCORE;
+		},
 		phoneticScoreLabel(item) {
 			const progress = this.phoneticProgressOf(item);
+			if (this.entryType === 'daily') {
+				return String(progress?.last_practice_date || '').slice(0, 10) === this.dateKey() ? '今日 ' + Number(progress?.last_score || 0) + '分' : '今日未练';
+			}
 			return progress && Number(progress.attempts || 0) > 0 ? `最高 ${Number(progress.best_score || progress.score || 0)}分` : '未进行';
 		},
 		async loadProgress() {
