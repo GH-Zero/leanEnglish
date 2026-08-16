@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page">
 		<AchievementUnlockNotifier />
     <animated-loading v-if="loading" text="加载练习中..."></animated-loading>
@@ -31,7 +31,7 @@
           <text class="answer-title">{{ isCorrect ? '回答正确' : '正确答案：' + currentQuestion.answer }}</text>
           <text>{{ currentQuestion.explanation }}</text>
         </view>
-        <button class="primary" :disabled="selectedIndex === -1" @click="answered ? next() : check()">{{ answered ? (questionIndex + 1 === questions.length ? '查看结果' : '下一题') : '检查答案' }}</button>
+        <button v-if="!answered || !isCorrect" class="primary" :disabled="selectedIndex === -1" @click="answered ? next() : check()">{{ answered ? (questionIndex + 1 === questions.length ? '查看结果' : '下一题') : '检查答案' }}</button>
       </view>
       <view v-else class="panel finished">
         <text class="finish-icon">🎉</text><text class="finish-title">本组练习完成</text>
@@ -48,10 +48,12 @@ import { playAnswerFeedback } from '@/utils/answer-feedback.js';
 import { isFirstLoad } from '@/utils/first-load.js';
 import { BASE_URL, getSettings } from '@/utils/api.js';
 export default {
-  data() { const firstLoad = isFirstLoad('pages/grammar/practice'); return { loading: firstLoad, firstLoad, entryType: 'course', grammarId: 0, stagePractice: 0, grammar: {}, questions: [], dailyGrammarQuestions: 10, questionIndex: 0, selectedIndex: -1, answered: false, isCorrect: false, correctCount: 0, masteryResult: null, questionProgress: null, step: 'explain', optionLabels: ['A', 'B', 'C', 'D'] }; },
+  data() { const firstLoad = isFirstLoad('pages/grammar/practice'); return { loading: firstLoad, firstLoad, entryType: 'course', grammarId: 0, stagePractice: 0, grammar: {}, questions: [], dailyGrammarQuestions: 10, questionIndex: 0, selectedIndex: -1, answered: false, isCorrect: false, correctCount: 0, masteryResult: null, questionProgress: null, step: 'explain', optionLabels: ['A', 'B', 'C', 'D'], autoNextTimer: null }; },
   computed: { currentQuestion() { return this.questions[this.questionIndex] || {}; } },
   onLoad(query) { this.entryType = query.entry === 'daily' ? 'daily' : 'course'; this.grammarId = Number(query.id || 0); this.stagePractice = Number(query.stage || 0); this.load(); },
+  onUnload() { this.clearAutoNext(); },
   methods: {
+    clearAutoNext() { if (this.autoNextTimer) { clearTimeout(this.autoNextTimer); this.autoNextTimer = null; } },
     async load() {
       if (this.firstLoad) { this.loading = true; this.firstLoad = false }
       try {
@@ -146,13 +148,15 @@ export default {
             this.grammar.questions = (this.grammar.questions || []).filter(question => Number(question.id) !== Number(this.currentQuestion.id));
           } catch (_) { uni.showToast({ title: '答题进度保存失败', icon: 'none' }); }
         }
+        this.clearAutoNext();
+        this.autoNextTimer = setTimeout(() => { this.autoNextTimer = null; this.next(); }, 900);
       } else {
         const wrong = uni.getStorageSync('grammar_wrong') || [];
         wrong.push({ ...this.currentQuestion, grammarId: this.currentQuestion.grammar_id || this.grammar.id, grammarTitle: this.currentQuestion.grammar_title || this.grammar.title, stage: Number(this.grammar.stage) });
         uni.setStorageSync('grammar_wrong', wrong);
       }
     },
-    next() { if (this.questionIndex + 1 >= this.questions.length) { this.finish(); return; } this.questionIndex++; this.selectedIndex = -1; this.answered = false; this.isCorrect = false; },
+    next() { this.clearAutoNext(); if (this.questionIndex + 1 >= this.questions.length) { this.finish(); return; } this.questionIndex++; this.selectedIndex = -1; this.answered = false; this.isCorrect = false; },
     async finish() {
       this.step = 'complete';
       if (this.stagePractice || !this.grammar.id || !this.questions.length) return;
@@ -164,7 +168,7 @@ export default {
         }));
       } catch (_) { uni.showToast({ title: '学习进度保存失败', icon: 'none' }); }
     },
-    restart() { this.masteryResult = null; this.questionProgress = null; this.questions = this.createQuestions(this.grammar.questions || []); this.questionIndex = 0; this.selectedIndex = -1; this.correctCount = 0; this.answered = false; this.step = 'practice'; },
+    restart() { this.clearAutoNext(); this.masteryResult = null; this.questionProgress = null; this.questions = this.createQuestions(this.grammar.questions || []); this.questionIndex = 0; this.selectedIndex = -1; this.correctCount = 0; this.answered = false; this.step = 'practice'; },
     goBack() { uni.navigateBack(); }
   }
 };

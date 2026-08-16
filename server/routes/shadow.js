@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
+const { normalizeEnglishText, englishWords } = require('../utils/english-text');
 async function enrichPhonetics(sentences) {
 	if (!Array.isArray(sentences) || !sentences.length) return sentences;
 	const tokens = new Set();
-	sentences.forEach(s => String(s.text || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).forEach(w => { if (w) tokens.add(w); }));
+	sentences.forEach(s => englishWords(s.text).forEach(w => tokens.add(w)));
 	const list = [...tokens];
 	let map = {};
 	if (list.length) {
@@ -14,7 +15,7 @@ async function enrichPhonetics(sentences) {
 		} catch (err) { map = {}; }
 	}
 	sentences.forEach(s => {
-		const raw = String(s.text || '').replace(/[^a-zA-Z' ]/g, ' ').split(/\s+/).filter(Boolean);
+		const raw = englishWords(normalizeEnglishText(s.text));
 		s.phonetic = raw.map(w => map[w.toLowerCase()] || w).join(' ');
 	});
 	return sentences;

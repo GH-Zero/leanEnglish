@@ -1,4 +1,4 @@
-﻿<template>
+<template>
 	<view class="container">
 		<AchievementUnlockNotifier />
 		<view class="header">
@@ -241,6 +241,7 @@ import { achievementRemainingText } from '@/utils/achievement-text.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
+import { isSameEnglishAnswer } from '@/utils/answer-normalization.js';
 
 
 export default {
@@ -930,14 +931,13 @@ export default {
 				uni.showToast({ title: '请输入单词', icon: 'none' });
 				return;
 			}
-			const correct = this.currentModeWord.word.toLowerCase();
-			const input = this.writeInput.trim().toLowerCase();
-			this.writeResult = input === correct ? 'correct' : 'wrong';
-			playAnswerFeedback(input === correct);
+			const correct = isSameEnglishAnswer(this.writeInput, this.currentModeWord.word);
+			this.writeResult = correct ? 'correct' : 'wrong';
+			playAnswerFeedback(correct);
 			this.totalAttempts++;
 			this.roundTotal++;
-			this.lastAnswerCorrect = input === correct;
-			if (input === correct) {
+			this.lastAnswerCorrect = correct;
+			if (correct) {
 				this.roundCorrect++;
 				this.correctCount++;
 				this.markWordKnownAPI(this.currentModeWord.word, 'write');

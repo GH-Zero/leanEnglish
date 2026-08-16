@@ -25,6 +25,7 @@ const grammarQuestionRoutes = require('./routes/grammar-question');
 const grammarPointRoutes = require('./routes/grammar-point');
 const adventureRoutes = require('./routes/adventure');
 const adventureCourseRoutes = require('./routes/adventure-course');
+const adventureMissionRoutes = require('./routes/adventure-mission');
 
 // 创建Express应用
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/grammar-question', grammarQuestionRoutes);
 app.use('/api/grammar-point', grammarPointRoutes);
 app.use('/api/adventure', adventureRoutes);
 app.use('/api/adventure-course', adventureCourseRoutes);
+app.use('/api/adventure-course/mission', adventureMissionRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

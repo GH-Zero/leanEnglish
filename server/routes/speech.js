@@ -1,8 +1,9 @@
-﻿const express = require('express');
+const express = require('express');
 const crypto = require('crypto');
 const https = require('https');
 const WebSocket = require('ws');
 const config = require('../xfyun-config');
+const { normalizeEnglishText } = require('../utils/english-text');
 
 const router = express.Router();
 const ISE_HOST = 'ise-api.xfyun.cn';
@@ -163,7 +164,7 @@ function isMp3(buffer, declaredFormat) {
 }
 
 function formatEvaluationText(value, category) {
-  const text = String(value || '').trim().replace(/[^A-Za-z0-9.' -]/g, ' ');
+  const text = normalizeEnglishText(value).replace(/[^A-Za-z0-9.' -]/g, ' ');
   if (category === 'read_word') return `\uFEFF[word]\n${text}`;
   return `\uFEFF[content]\n${text}`;
 }

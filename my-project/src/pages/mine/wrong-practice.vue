@@ -1,4 +1,4 @@
-﻿<template>
+<template>
 	<view class="page">
 		<view class="head"><text class="title">{{ modeTitle }}</text><text class="progress" v-if="words.length">{{ singlePractice ? '本题重练' : '剩余 ' + words.length + ' 题' }}</text></view>
 		<view class="card" v-if="current">
@@ -32,6 +32,7 @@ import { getAudioSettings } from '@/utils/learning-settings.js';
 import { playTts, clearTtsQueue } from '@/utils/tts-player.js';
 import { PRONUNCIATION_PASS_SCORE } from '@/utils/scoring-rules.js';
 import { playAnswerFeedback } from '@/utils/answer-feedback.js';
+import { isSameEnglishAnswer } from '@/utils/answer-normalization.js';
 export default {
 	data(){const firstLoad=isFirstLoad('pages/mine/wrong-practice');return{mode:'read',startWord:'',singlePractice:false,words:[],options:[],writeInput:'',selected:'',answered:false,passed:false,feedback:'',firstLoad,loading:firstLoad,audio:null,recorder:null,recording:false,evaluating:false,recordTimer:null}},
 	computed:{
@@ -47,7 +48,7 @@ export default {
 		async prepareQuestion(){this.selected='';this.answered=false;this.passed=false;this.feedback='';this.writeInput='';if(!this.current||!['listen','read'].includes(this.mode))return;try{const distractors=await apiRequest('/words/random?count=12');const field=this.mode==='listen'?'chinese':'word';const correct=this.current[field];const others=[...new Set(distractors.map(item=>item[field]).filter(value=>value&&value!==correct))].sort(()=>Math.random()-.5).slice(0,3);this.options=[correct,...others].sort(()=>Math.random()-.5);if(this.mode==='listen'&&this.autoPlay)setTimeout(()=>this.playStandard(),250)}catch(error){this.options=[this.correctAnswer]}},
 		optionClass(option){if(!this.answered)return{};return{correct:option===this.correctAnswer,wrong:option===this.selected&&option!==this.correctAnswer}},
 		async choose(option){if(this.answered)return;this.selected=option;playAnswerFeedback(option===this.correctAnswer);if(option===this.correctAnswer)await this.completeCurrent(this.singlePractice?'回答正确，正在返回错题本':'回答正确，即将进入下一题');else{this.answered=true;this.passed=false;this.feedback='回答错误，请再练习一次';await markWordAsUnknown(this.current.word,this.mode).catch(()=>{})}},
-		async checkWrite(){if(!this.current||this.answered)return;const correct=this.writeInput.trim().toLowerCase()===String(this.current.word).toLowerCase();playAnswerFeedback(correct);if(correct)await this.completeCurrent(this.singlePractice?'拼写正确，正在返回错题本':'拼写正确，即将进入下一题');else{this.answered=true;this.passed=false;this.feedback='拼写错误，正确答案是：'+this.current.word;await markWordAsUnknown(this.current.word,this.mode).catch(()=>{})}},
+		async checkWrite(){if(!this.current||this.answered)return;const correct=isSameEnglishAnswer(this.writeInput,this.current.word);playAnswerFeedback(correct);if(correct)await this.completeCurrent(this.singlePractice?'拼写正确，正在返回错题本':'拼写正确，即将进入下一题');else{this.answered=true;this.passed=false;this.feedback='拼写错误，正确答案是：'+this.current.word;await markWordAsUnknown(this.current.word,this.mode).catch(()=>{})}},
 		retry(){this.selected='';this.answered=false;this.passed=false;this.feedback='';this.writeInput=''},
 		completeCurrent(message){if(!this.current)return;const word=this.current.word;const mode=this.mode;this.answered=true;this.passed=true;this.feedback=message;markWordAsKnown(word,mode).catch(error=>{console.error('保存错题重练结果失败:',error);uni.showToast({title:'结果保存失败，下次将重新出现',icon:'none'})});setTimeout(async()=>{if(this.singlePractice)return uni.navigateBack();this.words.shift();if(!this.words.length)return this.finishQueue();await this.prepareQuestion()},350)},
 		finishQueue(){uni.showToast({title:'该类型错题已完成',icon:'success',duration:900});setTimeout(()=>uni.navigateBack(),900)},
