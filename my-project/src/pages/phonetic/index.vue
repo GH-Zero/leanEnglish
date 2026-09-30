@@ -1,4 +1,4 @@
-﻿<template>
+<template>
 	<view class="container">
 		<AchievementUnlockNotifier />
 		<view class="section progress-section">
@@ -21,16 +21,12 @@
 		<view class="section">
 			<text class="section-title">音标分类</text>
 			<view class="category-list">
-				<view class="category-item" :class="{ active: currentCategory === 'vowel' }" @click="switchCategory('vowel')">
-					<text class="category-text">元音</text>
-				</view>
-				<view class="category-item" :class="{ active: currentCategory === 'consonant' }" @click="switchCategory('consonant')">
-					<text class="category-text">辅音</text>
-				</view>
-				<view class="category-item" :class="{ active: currentCategory === 'combination' }" @click="switchCategory('combination')">
-					<text class="category-text">组合音</text>
+				<view v-for="cat in categoryTabs" :key="cat.key" class="category-item" :class="{ active: currentCategory === cat.key, locked: !isCategoryUnlocked(cat.key) }" @click="switchCategory(cat.key)">
+					<text class="category-text">{{ cat.name }}</text>
+					<text class="category-sub">{{ isCategoryUnlocked(cat.key) ? (categoryGroups[cat.key].mastered + '/' + categoryGroups[cat.key].total) : '🔒 未解锁' }}</text>
 				</view>
 			</view>
+			<view class="group-hint">{{ groupHint }}</view>
 		</view>
 		
 		<view class="section list-section">
@@ -129,7 +125,9 @@ export default {
 			listLoading: firstLoad,
 			firstLoad,
 			listError: false,
-			voiceType: 1
+			voiceType: 1,
+			groupPicked: false,
+			progressReady: false
 		}
 	},
 	computed: {
@@ -145,6 +143,28 @@ export default {
 		},
 		progressPercent() {
 			return Math.round((this.displayProgressCount / 48) * 100);
+		},
+		categoryTabs() {
+			return [{ key: 'vowel', name: '元音' }, { key: 'consonant', name: '辅音' }, { key: 'combination', name: '组合音' }];
+		},
+		categoryOrder() {
+			return ['vowel', 'consonant', 'combination'];
+		},
+		categoryGroups() {
+			const groups = { vowel: { total: 0, mastered: 0 }, consonant: { total: 0, mastered: 0 }, combination: { total: 0, mastered: 0 } };
+			for (const item of this.phonetics) {
+				const group = groups[item.category];
+				if (!group) continue;
+				group.total++;
+				if (this.isPhoneticMastered(item)) group.mastered++;
+			}
+			return groups;
+		},
+		groupHint() {
+			if (this.categoryOrder.every(cat => this.isCategoryFullyMastered(cat))) return '🎉 全部音标已通关，可随时回看复习';
+			const group = this.categoryGroups[this.currentCategory] || { total: 0, mastered: 0 };
+			const name = (this.categoryTabs.find(tab => tab.key === this.currentCategory) || {}).name || '';
+			return `当前组「${name}」：已掌握 ${group.mastered}/${group.total}，建议每天学 5–6 个，达标 ${PRONUNCIATION_PASS_SCORE} 分`;
 		}
 	},
 	async onLoad(options = {}) {
@@ -189,6 +209,7 @@ export default {
 				this.listError = true;
 			} finally {
 				this.listLoading = false;
+				this.pickCurrentGroup();
 			}
 		},
 		phoneticProgressOf(item) {
@@ -232,10 +253,37 @@ export default {
 					}
 					this.masteredCount = count;
 				} catch (err) {}
+			} finally {
+				this.progressReady = true;
+				this.pickCurrentGroup();
 			}
 		},
 		switchCategory(category) {
+			if (!this.isCategoryUnlocked(category)) {
+				const prevName = category === 'consonant' ? '元音' : '辅音';
+				uni.showToast({ title: `先完成「${prevName}」全部音标再解锁`, icon: 'none' });
+				return;
+			}
+			this.groupPicked = true;
 			this.currentCategory = category;
+		},
+		isCategoryFullyMastered(category) {
+			const group = this.categoryGroups[category];
+			return Boolean(group && group.total > 0 && group.mastered >= group.total);
+		},
+		isCategoryUnlocked(category) {
+			if (category === 'consonant') return this.isCategoryFullyMastered('vowel');
+			if (category === 'combination') return this.isCategoryFullyMastered('consonant');
+			return true;
+		},
+		pickCurrentGroup() {
+			if (this.groupPicked || !this.phonetics.length || !this.progressReady) return;
+			const order = this.categoryOrder;
+			const target = order.find(cat => this.isCategoryUnlocked(cat) && !this.isCategoryFullyMastered(cat))
+				|| [...order].reverse().find(cat => this.isCategoryUnlocked(cat))
+				|| 'vowel';
+			this.currentCategory = target;
+			this.groupPicked = true;
 		},
 		playSound(symbol, example, chinese) {
 			const word = example || 'hello';
@@ -564,6 +612,32 @@ export default {
 
 .category-item.active .category-text {
 	color: #FFFFFF;
+}
+
+.category-item {
+	text-align: center;
+}
+.category-sub {
+	display: block;
+	margin-top: 4rpx;
+	font-size: 18rpx;
+	color: #9aa3ab;
+}
+.category-item.active .category-sub {
+	color: rgba(255, 255, 255, 0.8);
+}
+.category-item.locked {
+	background-color: #f0f2f4;
+	opacity: 0.7;
+}
+.category-item.locked .category-text {
+	color: #9aa3ab;
+}
+.group-hint {
+	margin: 6rpx 4rpx 0;
+	font-size: 20rpx;
+	color: #6b7a86;
+	line-height: 1.5;
 }
 
 .phonetic-list {

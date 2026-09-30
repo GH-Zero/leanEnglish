@@ -8,6 +8,13 @@ function chinaDate(date = new Date()) {
   }).format(date);
 }
 
+// 间隔重复阶梯（天）：随复习次数递增，模拟遗忘曲线
+const REVIEW_LADDER = [1, 2, 4, 7, 15, 30];
+function reviewIntervalDays(repetition) {
+  const idx = Math.min(Math.max(Number(repetition) || 1, 1), REVIEW_LADDER.length) - 1;
+  return REVIEW_LADDER[idx];
+}
+
 const MODE_COLUMNS = {
   listen: 'listen_done',
   read: 'read_done',
@@ -88,20 +95,24 @@ router.post('/status/known', async (req, res) => {
     }
     completed[mode] = true;
     const mastered = Object.values(completed).every(Boolean) ? 1 : 0;
+    // 掌握后按阶梯递增间隔；尚未集齐四项则明天再来巩固
+    const prevRep = existing ? Number(existing.repetition || 0) : 0;
+    const newRep = mastered ? prevRep + 1 : Math.max(prevRep, 1);
+    const intervalDays = mastered ? reviewIntervalDays(newRep) : 1;
     const nextDate = new Date();
-    nextDate.setDate(nextDate.getDate() + (mastered ? 7 : 1));
+    nextDate.setDate(nextDate.getDate() + intervalDays);
 
     if (existing) {
       await db.prepare(`
         UPDATE word_status
-        SET ${column} = 1, wrong_mode = CASE WHEN wrong_mode = ? THEN NULL ELSE wrong_mode END, repetition = GREATEST(repetition, 1), mastered = ?, next_review_date = ?, last_review_date = ?, updated_at = CURRENT_TIMESTAMP
+        SET ${column} = 1, wrong_mode = CASE WHEN wrong_mode = ? THEN NULL ELSE wrong_mode END, repetition = ?, \`interval\` = ?, mastered = ?, next_review_date = ?, last_review_date = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ? AND word = ?
-      `).run(mode, mastered, chinaDate(nextDate), today, userId, word);
+      `).run(mode, newRep, intervalDays, mastered, chinaDate(nextDate), today, userId, word);
     } else {
       await db.prepare(`
         INSERT INTO word_status (user_id, word, repetition, \`interval\`, next_review_date, last_review_date, mastered, listen_done, read_done, write_done, speak_done, wrong_mode)
-        VALUES (?, ?, 1, 1, ?, ?, ?, ?, ?, ?, ?, NULL)
-      `).run(userId, word, chinaDate(nextDate), today, mastered, completed.listen ? 1 : 0, completed.read ? 1 : 0, completed.write ? 1 : 0, completed.speak ? 1 : 0);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      `).run(userId, word, newRep, intervalDays, chinaDate(nextDate), today, mastered, completed.listen ? 1 : 0, completed.read ? 1 : 0, completed.write ? 1 : 0, completed.speak ? 1 : 0);
     }
     await db.prepare('UPDATE word_wrong_records SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND word = ? AND mode = ?').run(userId, word, mode);
     await updateLearningStats(userId, true);
@@ -130,7 +141,7 @@ router.post('/status/unknown', async (req, res) => {
     if (existing) {
       await db.prepare(`
         UPDATE word_status
-        SET ${column} = 0, wrong_mode = ?, repetition = 0, mastered = 0, next_review_date = ?, last_review_date = ?, updated_at = CURRENT_TIMESTAMP
+        SET ${column} = 0, wrong_mode = ?, repetition = 0, \`interval\` = 1, mastered = 0, next_review_date = ?, last_review_date = ?, updated_at = CURRENT_TIMESTAMP
         WHERE user_id = ? AND word = ?
       `).run(mode, chinaDate(nextDate), today, userId, word);
     } else {

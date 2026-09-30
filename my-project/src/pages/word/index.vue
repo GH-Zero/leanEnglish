@@ -2,7 +2,7 @@
 	<view class="container">
 		<AchievementUnlockNotifier />
 		<view class="header">
-			<text class="title">{{ entryType === 'daily' ? '今日单词任务' : '单词词库' }}</text>
+			<text class="title">{{ entryType === 'daily' ? '今日单词任务' : (entryType === 'review' ? '单词复习' : '单词词库') }}</text>
 			<text class="subtitle">艾宾浩斯科学记忆</text>
 		</view>
 		<!-- 固定学习统计：页面滚动时保持在顶部 -->
@@ -47,7 +47,7 @@
 			</view>
 		</view>
 		<!-- 每日单词类型 -->
-		<view class="section" v-else>
+		<view class="section" v-else-if="entryType === 'daily'">
 			<text class="section-title">{{ progressiveMode ? '循序渐进学习' : '每日单词类型' }}</text>
 			<view class="daily-category-card">
 				<view class="category-main">
@@ -71,8 +71,23 @@
 				</view>
 			</scroll-view>
 		</view>
+		<!-- 单词复习：到期单词 -->
+		<view class="section" v-else-if="entryType === 'review'">
+			<text class="section-title">到期复习</text>
+			<view class="daily-category-card">
+				<view class="category-main">
+					<text class="category-label">复习任务</text>
+					<text class="category-name">{{ wordList.length }} 个到期单词</text>
+					<text class="category-desc">选择任一模式复习，答对将延长下次复习间隔</text>
+				</view>
+				<view class="category-meta">
+					<text>基于遗忘曲线安排</text>
+					<text>{{ wordList.length ? '开始复习巩固记忆' : '暂无到期单词，继续保持' }}</text>
+				</view>
+			</view>
+		</view>
 		<!-- 今日学习统计 -->
-		<view class="section" v-if="entryType !== 'course'">
+		<view class="section" v-if="entryType === 'daily'">
 			<text class="section-title">今日学习</text>
 			<view class="study-card progress-plan-card">
 				<view><text class="plan-text">今日掌握进度</text><text class="plan-hint">今天完成四项学习才计入今日掌握</text></view>
@@ -113,7 +128,7 @@
 			<view class="mode-panel">
 				<view class="mode-head">
 					<text class="mode-head-title">{{ modeTitle }}</text>
-					<text class="mode-head-progress" v-if="!roundFinished">{{ entryType === 'daily' ? '第 ' + (modeIndex + 1) + ' / ' + modeWords.length + ' 词 · ' : '' }}本词 {{ currentModeProgress }}/4 模块完成</text>
+					<text class="mode-head-progress" v-if="!roundFinished">{{ entryType !== 'course' ? '第 ' + (modeIndex + 1) + ' / ' + modeWords.length + ' 词 · ' : '' }}本词 {{ currentModeProgress }}/4 模块完成</text>
 					<text class="mode-head-progress" v-else>本轮练习已完成</text>
 					<text class="mode-head-close" @click="exitMode">✕</text>
 				</view>
@@ -368,7 +383,7 @@ export default {
 		}
 	},
 	onLoad(options = {}) {
-		this.entryType = options.entry === 'daily' ? 'daily' : 'course';
+		this.entryType = options.entry === 'daily' ? 'daily' : (options.entry === 'review' ? 'review' : 'course');
 		this.pendingWrongMode = options.wrongMode || '';
 		this.initRecorder();
 	},
@@ -590,6 +605,15 @@ export default {
 		async loadWords() {
 			if (this.firstLoad) { this.loading = true; this.firstLoad = false }
 			try {
+				if (this.entryType === 'review') {
+					const res = await apiRequest('/words/review?limit=60');
+					this.wordList = res?.words || [];
+					this.todayCategory = '到期复习';
+					this.todayCategoryDescription = '复习到期单词，答对将延长下次复习间隔';
+					this.currentWordIndex = 0;
+					this.showBack = false;
+					return;
+				}
 				const isCourse = this.entryType === 'course';
 				const categoryQuery = !isCourse && !this.progressiveMode && this.selectedCategory ? `&category=${encodeURIComponent(this.selectedCategory)}` : '';
 				const modeQuery = isCourse ? `&level=${this.currentLevel}` : (this.progressiveMode ? '&progressive=1' : `&level=${this.currentLevel}`);
@@ -770,16 +794,21 @@ export default {
 			}
 			await this.ensureWordStatusLoaded();
 			let pool = [...this.wordList];
-			try {
-				const more = await apiRequest(`/words/daily?limit=60${this.entryType === 'course' ? '&level=' + this.currentLevel : (this.progressiveMode ? '&progressive=1' : '&level=' + this.currentLevel)}`);
-				if (more?.words?.length) {
-					const seen = new Set(pool.map(item => item.word));
-					pool = [...pool, ...more.words.filter(item => !seen.has(item.word))];
-				}
-			} catch (e) {}
-			const pending = pool.filter(item => !(this.wordStatus[item.word]?.modes?.[mode]));
+			if (this.entryType !== 'review') {
+				try {
+					const more = await apiRequest(`/words/daily?limit=60${this.entryType === 'course' ? '&level=' + this.currentLevel : (this.progressiveMode ? '&progressive=1' : '&level=' + this.currentLevel)}`);
+					if (more?.words?.length) {
+						const seen = new Set(pool.map(item => item.word));
+						pool = [...pool, ...more.words.filter(item => !seen.has(item.word))];
+					}
+				} catch (e) {}
+			}
+			// 复习模式重练到期词，不按“该模式是否已完成”过滤
+			const pending = this.entryType === 'review'
+				? pool
+				: pool.filter(item => !(this.wordStatus[item.word]?.modes?.[mode]));
 			if (!pending.length) {
-				uni.showToast({ title: '本模式单词已全部完成', icon: 'none' });
+				uni.showToast({ title: this.entryType === 'review' ? '暂无到期复习的单词' : '本模式单词已全部完成', icon: 'none' });
 				return;
 			}
 			this.learningMode = mode;

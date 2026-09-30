@@ -360,6 +360,27 @@ router.get('/wrong', async (req, res) => {
   }
 });
 
+// 到期复习：返回 next_review_date <= 今天 的已学单词（含完整词条字段），按到期时间优先
+router.get('/review', async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.query.userId, 10) || 1;
+    const limit = safeLimit(req.query.limit, 60);
+    const date = chinaDate(req.query.date);
+    const words = await db.prepare(`
+      SELECT w.*, ws.mastered AS status_mastered, ws.repetition, ws.next_review_date, ws.last_review_date
+      FROM word_status ws
+      INNER JOIN words w ON w.word = ws.word
+      WHERE ws.user_id = ? AND ws.next_review_date IS NOT NULL AND ws.next_review_date <= ?
+      ORDER BY ws.next_review_date ASC, ws.updated_at ASC
+      LIMIT ?
+    `).all(userId, date, limit);
+    res.json({ code: 0, data: { words, reviewCount: words.length, date } });
+  } catch (error) {
+    console.error('获取复习单词失败:', error);
+    res.status(500).json({ code: 500, message: '获取复习单词失败' });
+  }
+});
+
 router.get('/categories', (req, res) => {
   const categories = DAILY_CATEGORIES.map((category) => ({
     category,

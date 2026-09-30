@@ -2,6 +2,7 @@
   "pages": [
     {"path":"pages/home/index","style":{"navigationBarTitleText":"首页"}},
     {"path":"pages/learn/index","style":{"navigationBarTitleText":"学习中心"}},
+    {"path":"pages/journey/index","style":{"navigationBarTitleText":"学习主线"}},
     {"path":"pages/speak/index","style":{"navigationBarTitleText":"口语练习"}},
     {"path":"pages/speak/shadow","style":{"navigationBarTitleText":"流利跟读"}},
     {"path":"pages/mine/index","style":{"navigationBarTitleText":"我的"}},

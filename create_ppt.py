@@ -18,6 +18,8 @@ WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 BLACK = RGBColor(0x1F, 0x1F, 0x1F)
 GRAY = RGBColor(0x7A, 0x7A, 0x7A)
 LIGHT_BG = RGBColor(0xF7, 0xF5, 0xF0)  # 米白色背景
+DANGER = RGBColor(0xB8, 0x50, 0x42)  # 红棕色（问题/痛点）
+GREEN = RGBColor(0x2C, 0x5F, 0x2D)  # 深绿色（正向/结业）
 
 def add_background(slide, color):
     """为幻灯片添加背景色"""
@@ -51,7 +53,7 @@ def add_bullet_list(slide, left, top, width, height, items, font_size=16, color=
     tb = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
     tf = tb.text_frame
     tf.word_wrap = True
-    
+
     for i, item in enumerate(items):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.text = f"• {item}"
@@ -75,471 +77,313 @@ def add_section_header(slide, title):
 # 1. 封面幻灯片
 slide = prs.slides.add_slide(prs.slide_layouts[6])  # 空白布局
 add_background(slide, PRIMARY)
-add_text_box(slide, 1, 2, 11.3, 2, "英语学习小程序", font_size=48, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-add_text_box(slide, 1, 4, 11.3, 1, "EnglishMaster - 从零基础到自由沟通", font_size=24, color=SECONDARY, alignment=PP_ALIGN.CENTER)
-add_text_box(slide, 1, 5.5, 11.3, 1, "产品方案与技术架构", font_size=18, color=GRAY, alignment=PP_ALIGN.CENTER)
+add_text_box(slide, 1, 1.9, 11.3, 2, "英语学习小程序", font_size=48, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+add_text_box(slide, 1, 3.6, 11.3, 1, "EnglishMaster · 从零基础到自由沟通", font_size=24, color=SECONDARY, alignment=PP_ALIGN.CENTER)
+add_text_box(slide, 1, 4.9, 11.3, 1, "学习设计升级方案", font_size=20, bold=True, color=ACCENT, alignment=PP_ALIGN.CENTER)
+add_text_box(slide, 1, 5.8, 11.3, 0.6, "从「功能货架」到「一条清晰主线」  ·  面向零基础成人自学", font_size=15, color=GRAY, alignment=PP_ALIGN.CENTER)
 
-# 2. 产品概述
+# 2. 为什么要升级（问题诊断）
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, LIGHT_BG)
-add_section_header(slide, "产品概述")
+add_section_header(slide, "为什么要升级学习设计")
 
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "产品定位", font_size=24, bold=True, color=PRIMARY)
-add_text_box(slide, 0.5, 2.5, 12.3, 1.5, "面向国内零基础成人，打造从音标发音矫正→单词积累→系统语法→短句情景对话→自由和AI外国人闲聊的沉浸式自学口语闭环。", font_size=18)
+add_text_box(slide, 0.5, 1.7, 12.3, 0.9, "评估结论：技术实现与 UI 不差（语音评测真实调后端），但「学习设计」是最弱短板——目前更像功能堆砌，还不是一条能带零基础用户走完的学习路径。", font_size=17, bold=True, color=PRIMARY)
 
-add_text_box(slide, 0.5, 4, 6, 1, "目标用户", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 0.5, 4.5, 6, 2.5, [
-    "英语零基础或基础薄弱的成人学习者",
-    "希望提高口语发音和流利度的职场人士",
-    "需要系统学习语法、应对日常沟通的学习者"
-], font_size=16)
-
-add_text_box(slide, 7, 4, 6, 1, "核心价值", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 7, 4.5, 6, 2.5, [
-    "AI纠音：音素级发音评估，纠正中式发音",
-    "科学记忆：艾宾浩斯记忆曲线，高效背单词",
-    "场景化语法：融入日常对话，学完就能用",
-    "AI对话陪练：模拟真实场景，锻炼口语反应"
-], font_size=16)
-
-# 3. 技术平台选型
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, LIGHT_BG)
-add_section_header(slide, "技术平台选型")
-
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "最终选型：微信小程序（核心主产品）", font_size=24, bold=True, color=PRIMARY)
-
-add_text_box(slide, 0.5, 2.8, 6, 1, "技术栈", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 0.5, 3.3, 6, 3, [
-    "前端框架：UniApp/Taro（Vue语法，可跨平台编译）",
-    "后端服务：Node.js/Java + 云服务器",
-    "语音评测：微软Azure发音评测 / 讯飞语音口语评测SDK",
-    "数据存储：MySQL + Redis + 对象存储（OSS）",
-    "推送服务：微信小程序订阅消息"
-], font_size=16)
-
-add_text_box(slide, 7, 2.8, 6, 1, "选型理由", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 7, 3.3, 6, 3, [
-    "国内用户体量最大，打开零门槛",
-    "微信原生录音API成熟，完美兼容语音评测SDK",
-    "社交裂变无敌：打卡分享、好友组队背单词",
-    "服务通知可定时推送背单词提醒",
-    "微信支付成熟，后期开通会员简单",
-    "前期低成本启动、快速迭代"
-], font_size=16)
-
-# 4. 核心功能模块
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, LIGHT_BG)
-add_section_header(slide, "核心功能模块")
-
-# 创建三个功能卡片
-def add_feature_card(slide, x, y, title, items):
-    # 卡片背景
-    card = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(3.8), Inches(4.5)
-    )
+def add_pain_card(slide, x, y, tag, title, items):
+    card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(3.8), Inches(3.9))
     card.fill.solid()
     card.fill.fore_color.rgb = WHITE
-    card.line.color.rgb = SECONDARY
-    card.line.width = Pt(1)
-    
-    # 标题
-    add_text_box(slide, x + 0.2, y + 0.2, 3.4, 0.5, title, font_size=20, bold=True, color=PRIMARY)
-    
-    # 内容
-    add_bullet_list(slide, x + 0.2, y + 0.8, 3.4, 3.5, items, font_size=14)
+    card.line.color.rgb = DANGER
+    card.line.width = Pt(1.5)
+    tag_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x + 0.2), Inches(y + 0.25), Inches(1.0), Inches(0.5))
+    tag_box.fill.solid()
+    tag_box.fill.fore_color.rgb = DANGER
+    tag_box.line.fill.background()
+    add_text_box(slide, x + 0.2, y + 0.32, 1.0, 0.4, tag, font_size=14, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+    add_text_box(slide, x + 0.2, y + 0.95, 3.4, 0.8, title, font_size=17, bold=True, color=PRIMARY)
+    add_bullet_list(slide, x + 0.2, y + 1.75, 3.4, 2, items, font_size=13.5, color=BLACK)
 
-add_feature_card(slide, 0.5, 1.8, "发音跟读模块", [
-    "音标发音通关课",
-    "48个英美音标逐个教学",
-    "AI发音评估与纠错",
-    "单词逐词跟读",
-    "短句/段落影子跟读",
-    "AI情景对话陪练"
+add_pain_card(slide, 0.5, 2.9, "P0-1", "复习机制形同虚设", [
+    "间隔写死：认识+7天 / 不认识+1天",
+    "前端没有任何「复习」入口",
+    "只背新词、旧词再不出现 → 学越多忘越多"
+])
+add_pain_card(slide, 4.7, 2.9, "P0-2", "音标每日任务过载", [
+    "要求每天把 48 个音标全部读到 80 分",
+    "音标本是「一次性入门课」，不该天天刷",
+    "门槛过高，第一天就劝退"
+])
+add_pain_card(slide, 8.9, 2.9, "P0-3", "无主线 · 选择过载", [
+    "首页 3 块并列入口 + 学习中心 3 门课平铺",
+    "语法/单词各等级可随意点，无前置依赖",
+    "零基础不知道「先点哪个」"
 ])
 
-add_feature_card(slide, 4.7, 1.8, "单词记忆模块", [
-    "分级词库（500/1500/3000词）",
-    "艾宾浩斯记忆曲线",
-    "听音辨义、拼写默写",
-    "图片联想记忆",
-    "例句语境学习",
-    "错题生词本"
-])
-
-add_feature_card(slide, 8.9, 1.8, "语法学习模块", [
-    "三阶段语法课程体系",
-    "场景化语法讲解",
-    "填空练习、造句练习",
-    "AI批改语法错误",
-    "实时语法纠错",
-    "语法知识图谱"
-])
-
-# 5. 发音跟读模块详解
+# 3. 升级核心
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, LIGHT_BG)
-add_section_header(slide, "发音跟读模块详解")
+add_section_header(slide, "升级核心：一条主线 + 两大机制")
 
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "功能流程", font_size=24, bold=True, color=PRIMARY)
+add_text_box(slide, 0.5, 1.7, 12.3, 0.7, "学习产品对新手最重要的是一条清晰主线，而不是功能货架。", font_size=18, bold=True, color=PRIMARY)
 
-# 创建流程图
-def add_flow_step(slide, x, y, step_num, title, description):
-    # 步骤圆圈
-    circle = slide.shapes.add_shape(
-        MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(0.8), Inches(0.8)
-    )
-    circle.fill.solid()
-    circle.fill.fore_color.rgb = ACCENT
-    circle.line.fill.background()
-    
-    # 步骤数字
-    add_text_box(slide, x + 0.1, y + 0.15, 0.6, 0.5, str(step_num), font_size=20, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-    
-    # 标题和描述
-    add_text_box(slide, x - 0.3, y + 1, 1.4, 0.5, title, font_size=14, bold=True, color=PRIMARY, alignment=PP_ALIGN.CENTER)
-    add_text_box(slide, x - 0.5, y + 1.5, 1.8, 1, description, font_size=12, color=BLACK, alignment=PP_ALIGN.CENTER)
+main_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.5), Inches(2.5), Inches(12.3), Inches(1.4))
+main_box.fill.solid()
+main_box.fill.fore_color.rgb = PRIMARY
+main_box.line.fill.background()
+add_text_box(slide, 0.7, 2.65, 11.9, 0.5, "唯一主线载体：成长地图（adventure）", font_size=19, bold=True, color=WHITE)
+add_text_box(slide, 0.7, 3.2, 11.9, 0.6, "音标 → 基础单词 → 基础句型语法 → 场景对话  ·  中高级内容按进度解锁  ·  首页给「继续学习」单一主 CTA", font_size=15, color=SECONDARY)
 
-# 添加流程步骤
-flow_steps = [
-    (1, "选择课程", "音标/单词/句子"),
-    (2, "播放标准发音", "可重复播放"),
-    (3, "用户跟读录音", "实时录制"),
-    (4, "AI语音评测", "音素级分析"),
-    (5, "反馈与纠错", "评分+改进建议")
-]
-
-for i, (num, title, desc) in enumerate(flow_steps):
-    x = 0.8 + i * 2.5
-    add_flow_step(slide, x, 3, num, title, desc)
-    # 连接箭头（用矩形模拟）
-    if i < len(flow_steps) - 1:
-        arrow = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE, Inches(x + 1.8), Inches(3.35), Inches(0.5), Inches(0.1)
-        )
-        arrow.fill.solid()
-        arrow.fill.fore_color.rgb = GRAY
-        arrow.line.fill.background()
-
-add_text_box(slide, 0.5, 5.5, 12.3, 1, "技术实现", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 0.5, 6, 12.3, 1.5, [
-    "语音录制：使用wx.getRecorderManager录制用户发音",
-    "语音评测：集成微软Azure发音评测SDK，音素级评估",
-    "反馈展示：显示评分、识别文本、标准文本，高亮错误音节",
-    "多级支持：音标→单词→短句→段落→情景对话"
-], font_size=16)
-
-# 6. 单词记忆模块详解
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, LIGHT_BG)
-add_section_header(slide, "单词记忆模块详解")
-
-add_text_box(slide, 0.5, 1.8, 6, 1, "记忆闭环流程", font_size=24, bold=True, color=PRIMARY)
-
-# 添加记忆闭环图
-def add_memory_cycle(slide, x, y, step, title, color):
-    # 圆形步骤
-    circle = slide.shapes.add_shape(
-        MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(1.2), Inches(1.2)
-    )
-    circle.fill.solid()
-    circle.fill.fore_color.rgb = color
-    circle.line.fill.background()
-    
-    # 步骤文字
-    add_text_box(slide, x + 0.1, y + 0.3, 1, 0.6, step, font_size=14, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-    
-    # 标题
-    add_text_box(slide, x - 0.2, y + 1.3, 1.6, 0.5, title, font_size=12, color=BLACK, alignment=PP_ALIGN.CENTER)
-
-# 添加四个记忆步骤
-colors = [PRIMARY, ACCENT, RGBColor(0xB8, 0x50, 0x42), RGBColor(0x2C, 0x5F, 0x2D)]
-steps = [
-    ("听音辨义", "播放发音选择释义"),
-    ("看英文想中文", "显示单词回忆释义"),
-    ("拼写默写", "根据释义拼写单词"),
-    ("单词跟读", "跟读发音AI评分")
-]
-
-positions = [(1, 2.5), (4, 2.5), (1, 4.5), (4, 4.5)]
-for i, (title, desc) in enumerate(steps):
-    x, y = positions[i]
-    add_memory_cycle(slide, x, y, f"第{i+1}步", title, colors[i])
-    add_text_box(slide, x - 0.2, y + 2.6, 1.6, 0.5, desc, font_size=12, color=BLACK, alignment=PP_ALIGN.CENTER)
-
-add_text_box(slide, 7, 1.8, 6, 1, "SRS算法（间隔重复系统）", font_size=24, bold=True, color=PRIMARY)
-add_bullet_list(slide, 7, 2.5, 6, 3, [
-    "基于艾宾浩斯遗忘曲线",
-    "根据用户记忆程度动态调整复习间隔",
-    "SM-2算法实现",
-    "记住的单词延长复习间隔",
-    "忘记的单词缩短复习间隔",
-    "智能安排每日复习计划"
-], font_size=16)
-
-add_text_box(slide, 7, 5, 6, 1, "辅助工具", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 7, 5.5, 6, 2, [
-    "错题生词本：自动收集标记单词",
-    "薄弱词汇强化：针对错误率高的单词",
-    "单词打卡日历：可视化学习连续性",
-    "好友背单词PK：微信好友排名激励"
-], font_size=14)
-
-# 7. 语法学习模块详解
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, LIGHT_BG)
-add_section_header(slide, "语法学习模块详解")
-
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "三阶段语法课程体系", font_size=24, bold=True, color=PRIMARY)
-
-# 创建三个阶段卡片
-def add_stage_card(slide, x, y, stage_num, title, items, color):
-    # 卡片背景
-    card = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(3.8), Inches(3)
-    )
-    card.fill.solid()
-    card.fill.fore_color.rgb = color
-    card.line.fill.background()
-    
-    # 阶段标签
-    add_text_box(slide, x + 0.2, y + 0.2, 1, 0.5, f"阶段{stage_num}", font_size=16, bold=True, color=WHITE)
-    
-    # 标题
-    add_text_box(slide, x + 0.2, y + 0.7, 3.4, 0.5, title, font_size=18, bold=True, color=WHITE)
-    
-    # 内容
-    add_bullet_list(slide, x + 0.2, y + 1.3, 3.4, 1.5, items, font_size=14, color=WHITE)
-
-add_stage_card(slide, 0.5, 2.5, 1, "基础句型", [
-    "主谓宾结构",
-    "主系表结构",
-    "疑问句构造",
-    "时态入门"
-], PRIMARY)
-
-add_stage_card(slide, 4.7, 2.5, 2, "核心语法", [
-    "8大核心时态",
-    "冠词用法",
-    "介词搭配",
-    "代词指代"
-], ACCENT)
-
-add_stage_card(slide, 8.9, 2.5, 3, "进阶语法", [
-    "从句结构",
-    "非谓语动词",
-    "虚拟语气",
-    "复杂句式"
-], RGBColor(0xB8, 0x50, 0x42))
-
-add_text_box(slide, 0.5, 5.8, 12.3, 1, "学习形式", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 0.5, 6.3, 12.3, 1.2, [
-    "短句例句 + 图文讲解 → 填空练习 → 造句练习 → AI批改句子语法正误",
-    "场景化拆解语法：把语法融入日常对话场景，学完立刻能用在口语里",
-    "实时语法纠错：在用户写作或口语练习中，调用语法检查API纠正错误"
-], font_size=16)
-
-# 8. 学习路径
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, LIGHT_BG)
-add_section_header(slide, "学习路径设计")
-
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "从零基础到自由沟通的完整路径", font_size=24, bold=True, color=PRIMARY)
-
-# 创建学习路径时间轴
-def add_path_stage(slide, x, y, stage, duration, title, items, color):
-    # 阶段圆圈
-    circle = slide.shapes.add_shape(
-        MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(1.5), Inches(1.5)
-    )
-    circle.fill.solid()
-    circle.fill.fore_color.rgb = color
-    circle.line.fill.background()
-    
-    # 阶段文字
-    add_text_box(slide, x + 0.2, y + 0.3, 1.1, 0.4, f"阶段{stage}", font_size=14, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-    add_text_box(slide, x + 0.2, y + 0.7, 1.1, 0.4, duration, font_size=12, color=WHITE, alignment=PP_ALIGN.CENTER)
-    
-    # 标题和内容
-    add_text_box(slide, x - 0.5, y + 1.6, 2.5, 0.5, title, font_size=14, bold=True, color=PRIMARY, alignment=PP_ALIGN.CENTER)
-    add_bullet_list(slide, x - 0.5, y + 2.1, 2.5, 1.5, items, font_size=12)
-
-# 添加四个阶段
-path_stages = [
-    (1, "0-3个月", "音标发音筑基", ["搞定所有音标", "会拼读任意单词", "标准发音打底"], PRIMARY),
-    (2, "3-6个月", "词汇+简单句型", ["背诵1500高频词", "掌握基础句式", "能说简单短句问答"], ACCENT),
-    (3, "6-12个月", "系统语法+短句对话", ["吃透口语必备语法", "连贯多句对话", "应对所有日常场景"], RGBColor(0xB8, 0x50, 0x42)),
-    (4, "持续", "自由沉浸式口语", ["AI无限话题闲聊", "角色扮演", "日常聊天、出行、职场"], RGBColor(0x2C, 0x5F, 0x2D))
-]
-
-for i, (stage, duration, title, items, color) in enumerate(path_stages):
-    x = 1 + i * 3
-    add_path_stage(slide, x, 2.5, stage, duration, title, items, color)
-    # 连接箭头
-    if i < len(path_stages) - 1:
-        arrow = slide.shapes.add_shape(
-            MSO_SHAPE.RECTANGLE, Inches(x + 1.6), Inches(3.1), Inches(1.2), Inches(0.1)
-        )
-        arrow.fill.solid()
-        arrow.fill.fore_color.rgb = GRAY
-        arrow.line.fill.background()
-
-add_text_box(slide, 0.5, 5.5, 12.3, 1, "每日学习建议", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 0.5, 6, 12.3, 1.5, [
-    "发音跟读：15分钟",
-    "单词记忆：20分钟（新词+复习）",
-    "语法学习：15分钟",
-    "综合练习：10分钟"
-], font_size=16)
-
-# 9. 技术架构
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, LIGHT_BG)
-add_section_header(slide, "技术架构设计")
-
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "系统架构图", font_size=24, bold=True, color=PRIMARY)
-
-# 创建架构图
-def add_arch_box(slide, x, y, title, color, width=2.5, height=1):
-    box = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(width), Inches(height)
-    )
-    box.fill.solid()
-    box.fill.fore_color.rgb = color
-    box.line.fill.background()
-    
-    add_text_box(slide, x + 0.1, y + 0.2, width - 0.2, 0.6, title, font_size=14, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-
-# 架构层级
-add_arch_box(slide, 5, 2.5, "用户界面 (小程序)", PRIMARY, 3.3, 0.8)
-add_arch_box(slide, 5, 3.8, "业务逻辑层 (云函数)", ACCENT, 3.3, 0.8)
-add_arch_box(slide, 5, 5.1, "数据层 (云数据库)", RGBColor(0xB8, 0x50, 0x42), 3.3, 0.8)
-add_arch_box(slide, 5, 6.4, "外部服务 (语音识别API、翻译API等)", RGBColor(0x2C, 0x5F, 0x2D), 3.3, 0.8)
-
-# 连接箭头
-for y in [3.3, 4.6, 5.9]:
-    arrow = slide.shapes.add_shape(
-        MSO_SHAPE.RECTANGLE, Inches(6.6), Inches(y), Inches(0.1), Inches(0.5)
-    )
-    arrow.fill.solid()
-    arrow.fill.fore_color.rgb = GRAY
-    arrow.line.fill.background()
-
-add_text_box(slide, 9, 2.5, 4, 1, "关键技术点", font_size=20, bold=True, color=PRIMARY)
-add_bullet_list(slide, 9, 3, 4, 4, [
-    "语音评测：微软Azure发音评测SDK",
-    "AI对话：GPT-3.5/4 API或国产大模型",
-    "数据存储：MySQL + Redis + OSS",
-    "性能优化：CDN加速、离线缓存",
-    "跨平台：UniApp/Taro一套代码",
-    "推送服务：微信订阅消息"
-], font_size=14)
-
-# 10. 开发计划
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_background(slide, LIGHT_BG)
-add_section_header(slide, "开发计划")
-
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "三阶段开发计划", font_size=24, bold=True, color=PRIMARY)
-
-# 创建三个阶段卡片
-def add_dev_card(slide, x, y, phase, duration, title, items, color):
-    # 卡片背景
-    card = slide.shapes.add_shape(
-        MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(3.8), Inches(4.5)
-    )
+def add_mech_card(slide, x, y, title, items, color):
+    card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(5.9), Inches(2.9))
     card.fill.solid()
     card.fill.fore_color.rgb = WHITE
     card.line.color.rgb = color
     card.line.width = Pt(2)
-    
-    # 阶段标签
-    add_text_box(slide, x + 0.2, y + 0.2, 1.5, 0.5, f"第{phase}阶段", font_size=16, bold=True, color=color)
-    
-    # 时长
-    add_text_box(slide, x + 1.8, y + 0.2, 2, 0.5, duration, font_size=14, color=GRAY)
-    
-    # 标题
-    add_text_box(slide, x + 0.2, y + 0.8, 3.4, 0.5, title, font_size=18, bold=True, color=PRIMARY)
-    
-    # 内容
-    add_bullet_list(slide, x + 0.2, y + 1.3, 3.4, 3, items, font_size=14)
+    add_text_box(slide, x + 0.25, y + 0.2, 5.4, 0.6, title, font_size=18, bold=True, color=color)
+    add_bullet_list(slide, x + 0.25, y + 0.95, 5.4, 1.8, items, font_size=14.5, color=BLACK)
 
-add_dev_card(slide, 0.5, 2.5, "一", "1.5个月", "MVP上线", [
-    "基础框架搭建（UniApp + 后端服务）",
-    "音标跟读基础功能",
-    "基础单词背诵（500词）",
-    "入门语法课程（阶段1）",
-    "基础AI短句对话",
-    "打卡分享功能"
-], PRIMARY)
-
-add_dev_card(slide, 4.7, 2.5, "二", "上线后2个月", "功能完善", [
-    "完整分级词库（1500词、3000词）",
-    "全套语法体系（阶段2、3）",
-    "多场景AI自由对话",
-    "错题本、生词本",
-    "会员付费体系"
+add_mech_card(slide, 0.5, 4.2, "机制一 · 入学自测 / 测试跳过 (test-out)", [
+    "不假设所有人从零开始",
+    "进入某阶段前给 5–8 题小自测",
+    "测过即跳过该阶段，没测过从头学",
+    "会的人不被浪费，不会的人有台阶"
 ], ACCENT)
+add_mech_card(slide, 6.9, 4.2, "机制二 · 音标分组通关（一次性课程）", [
+    "48 音标分组逐组解锁：元音 → 辅音 → 组合音",
+    "每天 5–6 个，达标 80 分算掌握",
+    "一组全掌握才解锁下一组",
+    "48 个全通关后结课，永不再占每日任务"
+], GREEN)
 
-add_dev_card(slide, 8.9, 2.5, "三", "用户破万后", "生态扩展", [
-    "基于UniApp打包双端App",
-    "打通小程序与App数据",
-    "社区功能（学习圈、问答）",
-    "多渠道运营",
-    "持续迭代优化"
-], RGBColor(0xB8, 0x50, 0x42))
-
-# 11. 风险与对策
+# 4. 五阶段主线总览
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, LIGHT_BG)
-add_section_header(slide, "风险与对策")
+add_section_header(slide, "五阶段主线总览")
 
-add_text_box(slide, 0.5, 1.8, 12.3, 1, "潜在挑战与解决方案", font_size=24, bold=True, color=PRIMARY)
+add_text_box(slide, 0.5, 1.7, 12.3, 0.7, "用成长地图当载体，做成地图上的 5 个大关；后一阶段默认锁定，达成前一阶段目标才解锁（允许测试跳过）。", font_size=16, bold=True, color=PRIMARY)
 
-# 创建风险对策表格
-def add_risk_table(slide, x, y):
-    # 表格背景
-    table_bg = slide.shapes.add_shape(
-        MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(12.3), Inches(4)
-    )
-    table_bg.fill.solid()
-    table_bg.fill.fore_color.rgb = WHITE
-    table_bg.line.color.rgb = SECONDARY
-    table_bg.line.width = Pt(1)
-    
-    # 表头
-    headers = ["风险", "描述", "对策"]
-    for i, header in enumerate(headers):
-        add_text_box(slide, x + 0.2 + i * 4.1, y + 0.2, 3.9, 0.5, header, font_size=16, bold=True, color=PRIMARY)
-    
-    # 内容
-    risks = [
-        ("语音识别精度", "不同口音、环境噪音影响识别", "提供标准发音参考，允许重录；后期引入降噪算法"),
-        ("内容版权", "单词库、例句可能涉及版权问题", "使用开源词典（ECdict），自编例句"),
-        ("用户留存", "学习类应用容易流失", "游戏化设计（积分、勋章）、社交激励（组队PK）、定期推送提醒")
-    ]
-    
-    for i, (risk, desc, solution) in enumerate(risks):
-        y_pos = y + 1 + i * 1
-        add_text_box(slide, x + 0.2, y_pos, 3.9, 0.8, risk, font_size=14, bold=True, color=PRIMARY)
-        add_text_box(slide, x + 4.3, y_pos, 3.9, 0.8, desc, font_size=14)
-        add_text_box(slide, x + 8.4, y_pos, 3.9, 0.8, solution, font_size=14, color=ACCENT)
+def add_stage_pill(slide, x, y, w, num, title, desc, color):
+    box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(3.0))
+    box.fill.solid()
+    box.fill.fore_color.rgb = color
+    box.line.fill.background()
+    add_text_box(slide, x + 0.12, y + 0.22, w - 0.24, 0.6, f"阶段 {num}", font_size=15, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+    add_text_box(slide, x + 0.08, y + 0.85, w - 0.16, 0.9, title, font_size=15, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+    add_text_box(slide, x + 0.08, y + 1.75, w - 0.16, 1.1, desc, font_size=12, color=WHITE, alignment=PP_ALIGN.CENTER)
 
-add_risk_table(slide, 0.5, 2.5)
+stages = [
+    ("0", "入学定位\n(可选)", "音标自测+常见词\n判断起点/能否跳过", GRAY),
+    ("1", "语音入门", "音标分组通关\n约8–10天", PRIMARY),
+    ("2", "基础词汇+句型", "Level0词汇+be动词\n一般现在时", ACCENT),
+    ("3", "日常表达", "Level1词汇+核心语法\n入门场景对话", DANGER),
+    ("4", "自由沟通", "Level2词汇+进阶语法\nAI自由对话", GREEN),
+]
+sx = 0.5
+sw = 2.3
+gap = 0.2
+for i, (num, title, desc, color) in enumerate(stages):
+    x = sx + i * (sw + gap)
+    add_stage_pill(slide, x, 2.7, sw, num, title, desc, color)
+    if i < len(stages) - 1:
+        arrow = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x + sw + 0.02), Inches(4.1), Inches(gap - 0.04), Inches(0.12))
+        arrow.fill.solid()
+        arrow.fill.fore_color.rgb = GRAY
+        arrow.line.fill.background()
 
-# 12. 总结与展望
+add_text_box(slide, 0.5, 6.0, 12.3, 1.2, "主线锁定 + 单点可回看：主线推进按阶段走（避免迷路），但已推进到后段仍可随时回看任一音标或某组单词复习。每阶段有明确的「学会了什么」结业标志，给足正反馈。", font_size=15, color=BLACK)
+
+# 5. 各阶段目标细化（阶段 0 / 1 / 2）
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+add_background(slide, LIGHT_BG)
+add_section_header(slide, "各阶段目标细化（阶段 0 – 2）")
+
+def add_stage_detail(slide, x, y, w, h, header, color, goal, content, pass_std):
+    card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+    card.fill.solid()
+    card.fill.fore_color.rgb = WHITE
+    card.line.color.rgb = color
+    card.line.width = Pt(1.5)
+    bar = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(0.55))
+    bar.fill.solid()
+    bar.fill.fore_color.rgb = color
+    bar.line.fill.background()
+    add_text_box(slide, x + 0.2, y + 0.08, w - 0.4, 0.45, header, font_size=15, bold=True, color=WHITE)
+    add_bullet_list(slide, x + 0.2, y + 0.7, w - 0.4, h - 0.9, [
+        f"目标：{goal}",
+        f"内容：{content}",
+        f"结业：{pass_std}",
+    ], font_size=13, color=BLACK)
+
+add_stage_detail(slide, 0.5, 1.8, 12.3, 1.55, "阶段 0 · 入学定位（可选，约 3 分钟）", GRAY,
+    "系统判断你该从哪开始",
+    "5–8 题小自测（听音选音标 + 几个 Level 0 常见词）",
+    "完成即可；音标题正确率 ≥ 80% → 允许跳过阶段 1")
+add_stage_detail(slide, 0.5, 3.5, 12.3, 1.55, "阶段 1 · 语音入门（音标通关，约 8–10 天）", PRIMARY,
+    "看到音标能读、听到发音能辨认",
+    "48 个音标分 3 组（元音→辅音→组合音），每天 5–6 个",
+    "每个音标跟读 ≥ 80 分算掌握；整组通关解锁下一组；48 个全通关后结课，不再进每日任务")
+add_stage_detail(slide, 0.5, 5.2, 12.3, 1.55, "阶段 2 · 基础词汇 + 基础句型", ACCENT,
+    "认识最常用入门词，能说/看懂最简单一句话（如 I am a student.）",
+    "Level 0 词汇 + 语法阶段 1（be 动词、一般现在时、主谓宾/主系表）",
+    "Level 0 词汇 100% 掌握；基础句型语法点全部已掌握。允许自测整段跳过")
+
+# 6. 各阶段目标细化（阶段 3 / 4）+ 达标规则
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+add_background(slide, LIGHT_BG)
+add_section_header(slide, "各阶段目标细化（阶段 3 – 4）")
+
+add_stage_detail(slide, 0.5, 1.8, 12.3, 1.6, "阶段 3 · 日常表达", DANGER,
+    "应付简单日常场景（点餐/问路），说出完整句子并被听懂",
+    "Level 1 词汇 + 语法阶段 2（常用时态、情态动词）+ 入门场景对话（餐厅、问路）",
+    "Level 1 词汇 100% 掌握；阶段 2 语法全掌握；≥ 1–2 个场景对话且 ≥ 80 分。允许自测整段跳过")
+add_stage_detail(slide, 0.5, 3.6, 12.3, 1.6, "阶段 4 · 自由沟通", GREEN,
+    "围绕熟悉话题与 AI 做多轮简单交流",
+    "Level 2 高频口语词 + 语法阶段 3（从句、非谓语）+ AI 自由对话",
+    "Level 2 词汇 100% 掌握；进阶语法全掌握；完成 N 轮 AI 自由对话且平均分达标")
+
+rule_box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.5), Inches(5.5), Inches(12.3), Inches(1.4))
+rule_box.fill.solid()
+rule_box.fill.fore_color.rgb = PRIMARY
+rule_box.line.fill.background()
+add_text_box(slide, 0.7, 5.62, 11.9, 0.5, "通用达标规则", font_size=16, bold=True, color=WHITE)
+add_bullet_list(slide, 0.7, 6.05, 11.9, 0.8, [
+    "词汇达标线 = 该阶段「精选分级词表」100% 掌握（切勿用整个词库，否则难结业）",
+    "音标/发音达标线沿用全局 80 分；除音标外，有基础者均可通过自测整段跳过",
+], font_size=13, color=SECONDARY)
+
+# 7. P0 改进：真实 SRS + 今日复习入口
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+add_background(slide, LIGHT_BG)
+add_section_header(slide, "P0 改进：让复习真正跑起来")
+
+add_text_box(slide, 0.5, 1.7, 6, 0.6, "问题", font_size=20, bold=True, color=DANGER)
+add_bullet_list(slide, 0.5, 2.3, 6, 2.4, [
+    "间隔写死：认识 +7 天 / 不认识 +1 天",
+    "word_status 建了 interval/ease 字段，但插入恒为 1",
+    "前端只统计「今日新学」，从不筛「今日该复习」",
+    "结果：SRS 白做，学越多忘越多，挫败感极强",
+], font_size=15, color=BLACK)
+
+add_text_box(slide, 7, 1.7, 6, 0.6, "改法", font_size=20, bold=True, color=ACCENT)
+add_bullet_list(slide, 7, 2.3, 6, 2.4, [
+    "后端补到期复习接口：next_review_date ≤ 今天 的词",
+    "固定 7/1 天 → 递增间隔：1 → 2 → 4 → 7 → 15 天",
+    "答对 repetition 递增驱动，答错重置到第一档",
+    "首页新增「今日复习 N 个」，排在「新学单词」之前",
+], font_size=15, color=BLACK)
+
+# 递增间隔可视化
+add_text_box(slide, 0.5, 4.9, 12.3, 0.5, "递增间隔曲线（最小可用版）", font_size=16, bold=True, color=PRIMARY)
+intervals = ["1 天", "2 天", "4 天", "7 天", "15 天"]
+ix = 1.0
+iw = 1.8
+igap = 0.8
+for i, label in enumerate(intervals):
+    x = ix + i * (iw + igap)
+    node = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(5.6), Inches(iw), Inches(0.8))
+    node.fill.solid()
+    node.fill.fore_color.rgb = ACCENT
+    node.line.fill.background()
+    add_text_box(slide, x, 5.75, iw, 0.5, label, font_size=16, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+    if i < len(intervals) - 1:
+        arrow = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x + iw + 0.15), Inches(5.95), Inches(igap - 0.3), Inches(0.1))
+        arrow.fill.solid()
+        arrow.fill.fore_color.rgb = GRAY
+        arrow.line.fill.background()
+
+# 8. 首页重构：从并列货架到主线 + 今日任务
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+add_background(slide, LIGHT_BG)
+add_section_header(slide, "首页重构：主线 + 今日任务")
+
+def add_ba_card(slide, x, title, title_color, items, border_color):
+    card = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(2.0), Inches(5.9), Inches(4.6))
+    card.fill.solid()
+    card.fill.fore_color.rgb = WHITE
+    card.line.color.rgb = border_color
+    card.line.width = Pt(2)
+    add_text_box(slide, x + 0.3, 2.2, 5.3, 0.6, title, font_size=20, bold=True, color=title_color)
+    add_bullet_list(slide, x + 0.3, 2.95, 5.3, 3.5, items, font_size=15, color=BLACK)
+
+add_ba_card(slide, 0.5, "现状（并列货架）", DANGER, [
+    "今日任务 / 闯关游戏 / 专项挑战 三块并列",
+    "音标每日任务：0/48，80 分达标",
+    "学习中心：音标/单词/语法三课平铺无锁定",
+    "闯关不回写掌握状态，用户疑惑「有啥用」",
+    "五套进度系统割裂、有冗余感",
+], DANGER)
+
+add_ba_card(slide, 6.9, "升级后（主线 + 今日任务）", GREEN, [
+    "顶部单一主 CTA：继续学习 → 下一步该做什么",
+    "今日任务：今日复习 N 个（首位）→ 新学单词",
+    "音标改为「总体通关进度 x/48」而非每日 48",
+    "成长地图作为唯一主线载体，其余为其环节",
+    "闯关回写主进度 或 定位为主线关卡内检验环节",
+], GREEN)
+
+# 9. 落地顺序
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+add_background(slide, LIGHT_BG)
+add_section_header(slide, "建议的落地顺序")
+
+def add_step_row(slide, y, num, title, desc, color):
+    circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(0.7), Inches(y), Inches(0.9), Inches(0.9))
+    circle.fill.solid()
+    circle.fill.fore_color.rgb = color
+    circle.line.fill.background()
+    add_text_box(slide, 0.7, y + 0.18, 0.9, 0.5, str(num), font_size=24, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+    add_text_box(slide, 1.9, y + 0.02, 11, 0.5, title, font_size=19, bold=True, color=PRIMARY)
+    add_text_box(slide, 1.9, y + 0.5, 11, 0.5, desc, font_size=14, color=BLACK)
+
+add_step_row(slide, 1.9, 1, "复习入口 + 音标任务量（小步快跑）", "改动集中在 home/index.vue + word.js；风险小见效快，直击「背了就忘」「第一天被劝退」", PRIMARY)
+add_step_row(slide, 3.1, 2, "主线引导", "首页与成长地图关系重排，落地五阶段主线 + test-out；改动中等", ACCENT)
+add_step_row(slide, 4.3, 3, "体验与激励", "闯关回写主进度 / 明确定位；答错补「为什么错」，错题本按知识点聚合弱点提示", DANGER)
+add_step_row(slide, 5.5, 4, "水平诊断", "首次进入 5–8 题小测，自动推荐起点等级与主线位置；改造较大，放最后", GREEN)
+
+# 10. 保留的技术能力 + 架构
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+add_background(slide, LIGHT_BG)
+add_section_header(slide, "保留的技术能力与架构")
+
+add_text_box(slide, 0.5, 1.7, 12.3, 0.6, "本次是「学习设计」升级，技术底座与真实能力保留复用。", font_size=17, bold=True, color=PRIMARY)
+
+def add_arch_box(slide, x, y, title, color, width=3.3, height=0.8):
+    box = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(x), Inches(y), Inches(width), Inches(height))
+    box.fill.solid()
+    box.fill.fore_color.rgb = color
+    box.line.fill.background()
+    add_text_box(slide, x + 0.1, y + 0.2, width - 0.2, 0.6, title, font_size=14, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+
+add_arch_box(slide, 1.2, 2.7, "用户界面（微信小程序 / UniApp）", PRIMARY)
+add_arch_box(slide, 1.2, 3.9, "业务逻辑层（Node.js 后端服务）", ACCENT)
+add_arch_box(slide, 1.2, 5.1, "数据层（MySQL + word_status/SRS）", DANGER)
+add_arch_box(slide, 1.2, 6.3, "外部服务（语音评测、AI 对话）", GREEN)
+for y in [3.5, 4.7, 5.9]:
+    arrow = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(2.75), Inches(y), Inches(0.1), Inches(0.4))
+    arrow.fill.solid()
+    arrow.fill.fore_color.rgb = GRAY
+    arrow.line.fill.background()
+
+add_text_box(slide, 6.5, 2.6, 6.3, 0.6, "已具备且保留的能力", font_size=18, bold=True, color=PRIMARY)
+add_bullet_list(slide, 6.5, 3.2, 6.3, 3.5, [
+    "语音评测真实：跟读录音调后端音素级评分",
+    "四模式单词学习：听音辨义 / 看词想义 / 拼写 / 跟读",
+    "语法课程体系：三阶段知识点 + 练习 + 错题本",
+    "场景对话：餐厅点餐等情景任务",
+    "成长地图 adventure：现成的主线载体",
+    "统计 / 成就 / 打卡 / 提醒等激励模块",
+], font_size=14, color=BLACK)
+
+# 11. 总结与展望
 slide = prs.slides.add_slide(prs.slide_layouts[6])
 add_background(slide, PRIMARY)
-add_text_box(slide, 1, 2, 11.3, 2, "总结与展望", font_size=48, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-
-add_text_box(slide, 1, 4, 11.3, 1.5, "EnglishMaster - 让英语学习更简单、更高效、更有趣", font_size=24, color=SECONDARY, alignment=PP_ALIGN.CENTER)
-
-add_text_box(slide, 2, 5.5, 9.3, 2, "核心优势：\n• AI纠音：音素级发音评估，纠正中式发音\n• 科学记忆：艾宾浩斯记忆曲线，高效背单词\n• 场景化语法：融入日常对话，学完就能用\n• AI对话陪练：模拟真实场景，锻炼口语反应", font_size=18, color=WHITE, alignment=PP_ALIGN.LEFT)
-
-add_text_box(slide, 1, 7, 11.3, 0.5, "期待与您共同打造这款英语学习产品！", font_size=16, color=GRAY, alignment=PP_ALIGN.CENTER)
+add_text_box(slide, 1, 1.6, 11.3, 1.5, "总结与展望", font_size=46, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
+add_text_box(slide, 1, 3.2, 11.3, 1, "让零基础用户走完一条清晰主线，而不是面对一堆功能", font_size=22, color=SECONDARY, alignment=PP_ALIGN.CENTER)
+add_text_box(slide, 2, 4.4, 9.3, 2.4, "本次升级要点：\n• 一条主线：音标 → 词汇+句型 → 日常表达 → 自由沟通，成长地图为唯一载体\n• 两大机制：入学自测/测试跳过、音标分组通关\n• 真实 SRS：递增间隔 + 首页「今日复习」入口\n• 减负去冗余：首页只留「主线 + 今日任务」", font_size=17, color=WHITE, alignment=PP_ALIGN.LEFT)
+add_text_box(slide, 1, 6.8, 11.3, 0.5, "先做最痛的两点（复习入口 + 音标任务量），小步快跑、逐步解锁。", font_size=15, color=GRAY, alignment=PP_ALIGN.CENTER)
 
 # 保存演示文稿
-prs.save("D:\\Desktop\\learnEngish\\英语学习小程序方案.pptx")
-print("PPT已成功创建：英语学习小程序方案.pptx")
+import os
+OUTPUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "英语学习小程序方案.pptx")
+prs.save(OUTPUT)
+print(f"PPT已成功创建：{OUTPUT}")
